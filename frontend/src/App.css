@@ -1,0 +1,836 @@
+/* ==========================================================
+   Design tokens
+   ========================================================== */
+:root {
+  --bg: #f5f6fa;
+  --surface: #ffffff;
+  --border: #e5e7eb;
+  --text: #1f2937;
+  --text-muted: #6b7280;
+
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-light: #eef2ff;
+
+  --danger: #dc2626;
+  --danger-bg: #fee2e2;
+  --warning: #d97706;
+  --warning-bg: #ffedd5;
+  --success: #16a34a;
+  --success-bg: #dcfce7;
+
+  --radius: 14px;
+  --radius-sm: 8px;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 14px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1117;
+    --surface: #171a23;
+    --border: #2a2e3a;
+    --text: #e5e7eb;
+    --text-muted: #9ca3af;
+    --primary-light: rgba(79, 70, 229, 0.15);
+  }
+}
+
+/* ==========================================================
+   Base
+   ========================================================== */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Segoe UI", system-ui, Roboto, Arial, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.container {
+  width: 92%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-bottom: 60px;
+}
+
+/* ==========================================================
+   Header
+   ========================================================== */
+.app-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 0;
+  margin-bottom: 28px;
+}
+
+.app-header-title {
+  width: 92%;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--primary);
+}
+
+.app-header-title h1 {
+  margin: 0;
+  font-size: 22px;
+  color: var(--text);
+}
+
+.app-header-title p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ==========================================================
+   Cards
+   ========================================================== */
+.card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 22px;
+  margin-bottom: 24px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.card h2 {
+  margin: 0 0 16px;
+  font-size: 17px;
+  color: var(--text);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.card-header h2 {
+  margin: 0;
+}
+
+/* ==========================================================
+   Layout grid
+   ========================================================== */
+/* Form + Chart: both fixed-height regardless of app state, so
+   stretching them to match never leaves a dangling gap. */
+.top-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 24px;
+  align-items: stretch;
+  margin-bottom: 24px;
+}
+
+.top-grid > * {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+@media (max-width: 900px) {
+  .top-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Lets the textarea absorb the card's stretched height instead of
+   leaving blank space above the button */
+.card form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.card form textarea {
+  flex: 1;
+}
+
+/* ==========================================================
+   Dashboard stat cards
+   ========================================================== */
+.stats-section {
+  margin-bottom: 24px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.stats-grid-secondary {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.stat-primary .stat-icon { background: var(--primary-light); color: var(--primary); }
+.stat-high .stat-icon { background: var(--danger-bg); color: var(--danger); }
+.stat-medium .stat-icon { background: var(--warning-bg); color: var(--warning); }
+.stat-low .stat-icon { background: var(--success-bg); color: var(--success); }
+
+.stat-value {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.stat-label {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.stat-neutral {
+  display: block;
+  text-align: center;
+  padding: 12px 10px;
+}
+
+@media (max-width: 900px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ==========================================================
+   Form elements
+   ========================================================== */
+textarea {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-family: inherit;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  resize: vertical;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--text);
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+textarea:disabled {
+  opacity: 0.6;
+}
+
+select,
+input[type="text"] {
+  padding: 9px 12px;
+  font-size: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+
+/* ==========================================================
+   Buttons
+   ========================================================== */
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btn-primary {
+  margin-top: 16px;
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  padding: 12px 22px;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-ghost:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* ==========================================================
+   Result / AI analysis text
+   ========================================================== */
+p {
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.result-summary {
+  margin-bottom: 16px;
+  color: var(--text-muted);
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .result-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.result-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.result-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.result-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.confidence-row {
+  margin-bottom: 16px;
+}
+
+.confidence-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.confidence-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.confidence-high { background: var(--success); }
+.confidence-medium { background: var(--warning); }
+.confidence-low { background: var(--danger); }
+
+.confidence-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 36px;
+  text-align: right;
+}
+
+.keywords-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.keyword-chip {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 999px;
+}
+
+.reason-box {
+  font-size: 14px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.reply-box {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  background: var(--bg);
+}
+
+.reply-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.reply-box p {
+  color: var(--text);
+}
+
+.escalation-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+}
+
+.review-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+}
+
+.result-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.routing-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ==========================================================
+   Time Saved card
+   ========================================================== */
+.time-savings-card h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+}
+
+.time-savings-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.time-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  flex: 1;
+  min-width: 220px;
+}
+
+.time-stat .result-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 13px;
+}
+
+.time-value {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.time-value-ai {
+  color: var(--primary);
+}
+
+.time-stat-highlight {
+  background: var(--success-bg);
+}
+
+.time-stat-highlight .time-value {
+  color: var(--success);
+}
+
+.time-savings-note {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.time-savings-note code {
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ==========================================================
+   Badges
+   ========================================================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.badge-high { background: var(--danger-bg); color: var(--danger); }
+.badge-medium { background: var(--warning-bg); color: var(--warning); }
+.badge-low { background: var(--success-bg); color: var(--success); }
+
+.badge-positive { background: var(--success-bg); color: var(--success); }
+.badge-neutral { background: #e5e7eb; color: #4b5563; }
+.badge-angry { background: var(--danger-bg); color: var(--danger); }
+
+.badge-default { background: #e5e7eb; color: #4b5563; }
+
+/* ==========================================================
+   Chart card
+   ========================================================== */
+.chart-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.chart-tab {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.chart-body {
+  flex: 1;
+  min-height: 220px;
+}
+
+.chart-body.chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* ==========================================================
+   Ticket history toolbar + table
+   ========================================================== */
+.history-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.search-box input {
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 9px 0;
+  flex: 1;
+  color: var(--text);
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+th,
+td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+th:hover {
+  color: var(--primary);
+}
+
+tr:hover td {
+  background: var(--primary-light);
+}
+
+.message-cell {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-only-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.review-only-toggle input {
+  cursor: pointer;
+}
+
+.review-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warning);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: default;
+}
+
+tr.row-needs-review td {
+  background: var(--warning-bg);
+}
+
+tr.row-needs-review:hover td {
+  background: var(--warning-bg);
+  filter: brightness(0.97);
+}
+
+/* ==========================================================
+   Empty state
+   ========================================================== */
+.empty-state {
+  text-align: center;
+  padding: 32px 12px;
+  color: var(--text-muted);
+}
+
+.empty-state p {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.empty-state span {
+  font-size: 13px;
+}
+
+/* ==========================================================
+   Spinner
+   ========================================================== */
+.spinner {
+  display: inline-block;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================
+   Toast
+   ========================================================== */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  animation: toast-in 0.2s ease;
+  z-index: 50;
+}
+
+.toast-success { background: var(--success); }
+.toast-error { background: var(--danger); }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================
+   Mobile responsive
+   ========================================================== */
+@media (max-width: 768px) {
+
+  .container {
+    width: 95%;
+  }
+
+  .result-grid {
+    grid-template-columns: 1fr;
+  }
+
+  table {
+    font-size: 13px;
+  }
+
+  .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .toast {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+  }
+}
