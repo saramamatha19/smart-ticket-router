@@ -270,12 +270,12 @@ The app is now available at `http://localhost:5173`.
 | `GET` | `/tickets` | Lists saved tickets, newest first. Optional `limit` (1–500) and `offset` query params; total row count is returned via the `X-Total-Count` header. |
 | `GET` | `/tickets/stats` | Returns dashboard analytics: totals by priority, category, sentiment, and a `needs_human_review_count`. |
 
-**`POST /route-ticket`**
+**`POST /route-ticket`** — a real multi-intent submission (matches the [Screenshots](#screenshots) below):
 
 ```bash
 curl -X POST http://localhost:8000/route-ticket \
   -H "Content-Type: application/json" \
-  -d '{"message": "My invoice shows a charge I do not recognize."}'
+  -d "{\"message\": \"I'm facing several issues today.\n1. I was charged twice for my monthly subscription yesterday and would like a refund.\n2. The mobile app crashes immediately after I log in, so I can't access my dashboard.\n3. Something also feels wrong with my account, but I'm not sure what exactly is causing it.\n4. By the way, what's your favorite movie?\"}"
 ```
 
 ```json
@@ -284,30 +284,72 @@ curl -X POST http://localhost:8000/route-ticket \
     "category": "Billing",
     "priority": "High",
     "assigned_team": "Finance",
-    "reason": "Customer reports an unrecognized charge on their invoice, which requires billing investigation.",
-    "confidence": 88,
-    "sentiment": "Neutral",
-    "summary": "Customer sees a charge on their invoice they don't recognize.",
-    "keywords": ["invoice", "charge", "billing", "unrecognized"],
+    "reason": "The customer reports a duplicate charge and requests a refund, which is a high-priority billing issue.",
+    "confidence": 95,
+    "sentiment": "Angry",
+    "summary": "Customer was charged twice for their monthly subscription and requests a refund.",
+    "keywords": ["duplicate charge", "monthly subscription", "refund", "billing"],
     "estimated_resolution_time": "1-4 Hours",
-    "suggested_reply": "Thanks for flagging this — we're looking into the charge on your invoice and will follow up shortly with details.",
+    "suggested_reply": "Thank you for bringing this to our attention. We apologize for the duplicate charge and will investigate your account immediately. You will receive an update regarding your refund as soon as possible.",
+    "escalation_needed": true,
+    "needs_human_review": false
+  },
+  {
+    "category": "Technical",
+    "priority": "High",
+    "assigned_team": "Engineering",
+    "reason": "The customer cannot access the app due to immediate crashes after login, which is a critical technical issue.",
+    "confidence": 95,
+    "sentiment": "Angry",
+    "summary": "Mobile app crashes immediately after login, preventing dashboard access.",
+    "keywords": ["app crash", "login", "dashboard", "mobile app"],
+    "estimated_resolution_time": "1-4 Hours",
+    "suggested_reply": "We're sorry to hear about the app crashing after login. Our engineering team will investigate this issue right away. Thank you for your patience as we work to resolve it.",
+    "escalation_needed": true,
+    "needs_human_review": false
+  },
+  {
+    "category": "General",
+    "priority": "Low",
+    "assigned_team": "Support",
+    "reason": "The customer reports a vague issue with their account but provides no specific details, so it is routed to Support for clarification.",
+    "confidence": 60,
+    "sentiment": "Neutral",
+    "summary": "Customer feels something is wrong with their account but cannot specify the issue.",
+    "keywords": ["account issue", "unclear problem", "support", "general"],
+    "estimated_resolution_time": "3-5 Business Days",
+    "suggested_reply": "Thank you for letting us know. Could you please provide more details about what feels wrong with your account? This will help us assist you more effectively.",
+    "escalation_needed": false,
+    "needs_human_review": false
+  },
+  {
+    "category": "Off-Topic",
+    "priority": "Low",
+    "assigned_team": "Unassigned",
+    "reason": "The customer asks a personal question unrelated to support, which is off-topic and requires no action.",
+    "confidence": 100,
+    "sentiment": "Positive",
+    "summary": "Customer asks about the support agent's favorite movie, which is unrelated to support.",
+    "keywords": ["favorite movie", "off-topic", "personal question"],
+    "estimated_resolution_time": "N/A - no action required",
+    "suggested_reply": "Thank you for your question! As an automated support system, I don't have personal preferences, but I'm here to help with any issues you have.",
     "escalation_needed": false,
     "needs_human_review": false
   }
 ]
 ```
 
-A message with more than one independent request returns more than one entry in this array, each with its own category/team/priority.
+A single-intent message returns the same shape with exactly one entry in the array.
 
-**`GET /tickets/stats`**
+**`GET /tickets/stats`** — real totals from this project's running demo instance:
 
 ```json
 {
-  "total": 42,
-  "by_priority": { "High": 10, "Medium": 20, "Low": 12 },
-  "by_category": { "Billing": 8, "Technical": 15, "Sales": 9, "General": 6, "Network": 3, "Off-Topic": 1 },
-  "by_sentiment": { "Positive": 5, "Neutral": 30, "Angry": 7 },
-  "needs_human_review_count": 4
+  "total": 137,
+  "by_priority": { "High": 49, "Medium": 28, "Low": 60 },
+  "by_category": { "Billing": 32, "Technical": 40, "Sales": 10, "General": 35, "Network": 14, "Off-Topic": 6 },
+  "by_sentiment": { "Positive": 20, "Neutral": 100, "Angry": 17 },
+  "needs_human_review_count": 7
 }
 ```
 
@@ -339,15 +381,15 @@ A message with more than one independent request returns more than one entry in 
 
 ## Learning Outcomes
 
-This project is a working demonstration of:
+This project demonstrates:
 
-- **Structured, schema-constrained LLM output** — using OpenAI Structured Outputs (`text_format=`) so a Pydantic model doubles as both the API's response contract and a hard guarantee on the model's generation, eliminating an entire class of malformed-JSON failures by construction rather than by prompt-worded convention.
-- **Separating format enforcement from reasoning** — the prompt's job is narrowed to the actual classification logic; the schema's job is the shape of the answer. Conflating the two (as in early prompt versions) makes both harder to get right.
-- **Deterministic tie-breaks over "best judgment"** — replacing ambiguous prompt instructions with explicit decision rules, learned directly from observing inconsistent outputs across runs.
-- **Not trusting a model's self-report blindly** — `needs_human_review` is recomputed server-side from `confidence` rather than accepted as-is, and the evaluation harness explicitly checks whether confidence tracks correctness instead of assuming it does.
-- **Resilience engineering for a synchronous, user-facing AI call** — distinguishing retryable infrastructure failures from non-retryable content/auth failures, bounding retries and timeouts against real measured latency, and caching a pure function of its input.
-- **Evaluation as evidence, not assumption** — a hand-labeled set with expected answers fixed before the model sees them, graded automatically, with confidence-calibration analysis rather than a single headline accuracy number.
-- **Iterative documentation of failure** — prompt versions, a changelog, and a learnings doc that record what didn't work and why, not just the current state.
+- **Schema-constrained LLM output** — Structured Outputs make malformed JSON structurally impossible, not just discouraged.
+- **Separating reasoning from format** — the prompt handles classification logic; the schema handles shape.
+- **Deterministic rules over "best judgment"** — explicit tie-breaks instead of ambiguous instructions.
+- **Not trusting self-reported confidence blindly** — `needs_human_review` is recomputed server-side, and calibration is measured, not assumed.
+- **Resilience for a synchronous AI call** — retryable vs. non-retryable errors, bounded timeouts, caching.
+- **Evaluation as evidence** — labels fixed before the model runs, graded automatically, calibration checked.
+- **Documenting failure, not just success** — prompt versions, a changelog, and a learnings doc.
 
 ## License
 
