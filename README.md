@@ -131,33 +131,27 @@ frontend/src/{pages,components,services}
 
 ## AI Design
 
-**Prompt engineering.** The system prompt (`app/prompts/ticket_prompt.py`) defines the allowed categories (Billing, Technical, Sales, General, Network, Off-Topic), priorities (High/Medium/Low), and teams, with keyword guidance and worked examples for each. It states explicit, deterministic tie-break rules rather than leaving decisions to "best judgment": Billing-vs-Sales pricing questions are decided by whether the customer already holds the charge/plan in question, and ambiguous tickets are routed on any concrete symptom if one exists, defaulting to `General / Low / Support` only when there is truly no signal at all. It also defines a MULTI-INTENT MESSAGES section instructing the model when to split a message into multiple `tickets` entries and when not to (a single issue described across several sentences is still one ticket).
-
-**Structured Outputs.** `TicketBatchResponse` (in `app/schemas/ticket_schema.py`) is passed directly as `text_format` to `client.responses.parse()`. OpenAI converts that Pydantic model into a strict JSON Schema and constrains generation to match it exactly, so `response.output_parsed` comes back as an already-validated object — no markdown fences, no missing fields, no manual JSON parsing or repair step.
-
-**Why Structured Outputs were chosen.** Before this, format compliance depended entirely on prose instructions ("return ONLY JSON," a "FINAL CHECK" compliance checklist) plus a blind repair pass on whatever came back — and it still occasionally failed, because nothing actually forced the model to comply. Structured Outputs turns "please return valid JSON" into "the API will not let you return anything else," which let the formatting-policing section of the prompt be deleted entirely.
-
-**Confidence score.** The model reports an integer 0–100 confidence with every classification, with explicit prompt guidance to use lower values for short, vague, or ambiguous tickets and higher values when the issue and category are explicit.
-
-**Human review logic.** `needs_human_review` is a real schema field the model fills in, but `app/services/router_service.py`'s `_apply_human_review_flag()` always overwrites it with `confidence < CONFIDENCE_REVIEW_THRESHOLD` (50) before the response leaves `route_ticket()`. This guarantees the flag matches the threshold exactly, rather than depending on the model doing that arithmetic correctly and consistently on every call.
-
-**Retry strategy.** Only transient infrastructure errors (`RateLimitError`, `APITimeoutError`, `APIConnectionError`, `InternalServerError`) are retried, once, with exponential backoff (`BACKOFF_BASE_SECONDS * 2^(attempt-1)`). Authentication and invalid-request errors are raised immediately, since a second attempt would fail identically. Every call has a 15-second timeout — long enough that a normal 1–4s response never trips it, short enough that a genuinely hung request fails fast. Temperature is fixed at 0.2: low enough to keep classification effectively deterministic over a small, fixed answer space, but not `0.0`, so generated text (`summary`, `suggested_reply`) doesn't read as a robotic repeated template.
-
-**Error handling.** `route_ticket()` raises on failure — the route handler in `app/router/routes.py` catches any exception, logs the full detail server-side, and returns a 502 with a generic message, never leaking exception internals to the caller. For batch/CLI use where a single bad ticket shouldn't halt a run, `route_ticket_with_diagnostics()` never raises: it returns a structured `{success, tickets, error, latency_ms, input_tokens, output_tokens, total_tokens}` dict instead, used by `scripts/batch_summary.py`.
+- **Prompt engineering** — `app/prompts/ticket_prompt.py` defines the categories, priorities, and teams with keyword guidance, plus deterministic tie-break rules (e.g. Billing vs. Sales) instead of "best judgment," and a MULTI-INTENT section on when to split a message into multiple `tickets` entries.
+- **Structured Outputs** — `TicketBatchResponse` is passed as `text_format` to `client.responses.parse()`. OpenAI constrains generation to match its JSON Schema exactly, so `response.output_parsed` is already validated — no repair step needed.
+- **Why Structured Outputs** — they replace prose rules ("return ONLY JSON") that occasionally failed anyway. The API now makes malformed output impossible, not just discouraged.
+- **Confidence score** — an integer 0–100 self-reported per classification; the prompt asks for lower values on vague/short tickets, higher on explicit ones.
+- **Human review logic** — `needs_human_review` is recomputed server-side as `confidence < 50` in `_apply_human_review_flag()`, overriding the model's own guess so it can't drift from the threshold.
+- **Retry strategy** — one retry with exponential backoff for transient errors (rate limit, timeout, network, 5xx); auth/invalid-request errors fail immediately. 15s timeout; temperature fixed at `0.2` (keeps classification effectively deterministic, but not so low that generated text feels templated).
+- **Error handling** — `route_ticket()` raises on failure; the route handler logs details server-side and returns a generic 502. `route_ticket_with_diagnostics()` never raises — it returns a structured result dict instead, for batch/CLI use (`scripts/batch_summary.py`).
 
 ## Prompt Evolution
 
-The system prompt went through five documented revisions (`backend/app/prompts/versions/v1.txt`–`v5.txt`, summarized in `backend/app/prompts/PROMPT_CHANGELOG.md`):
+Five documented revisions (`backend/app/prompts/versions/v1.txt`–`v5.txt`, summarized in `backend/app/prompts/PROMPT_CHANGELOG.md`):
 
-- **v1 → v2:** Removed prose-based format policing ("return ONLY JSON," a "FINAL CHECK" checklist) in favor of OpenAI Structured Outputs, which enforces the schema mechanically instead of hoping the model complies.
-- **v2 → v3:** Unified the previously-duplicated category-keyword list and category→team mapping into one block per category, and replaced two "use your best judgment" decision points (Billing-vs-Sales, ambiguous tickets) with explicit, deterministic tie-break rules.
-- **v3:** Added the `needs_human_review` field, bundled into the same revision, so a low-confidence classification could be flagged for a human rather than displayed identically to a confident one.
-- **v3 → v4:** Added multi-intent support — a `TicketBatchResponse` wrapping a `tickets: list[TicketResponse]` — so a message with more than one independent request no longer forces a single blended classification.
-- **v4 → v5 (current):** Added the `Off-Topic → Unassigned` category so content unrelated to the product (jokes, trivia, small talk) stops landing in the Support team's queue alongside real work.
+- **v1 → v2** — Replaced prose-based format policing with OpenAI Structured Outputs, enforcing the schema mechanically instead of hoping the model complies.
+- **v2 → v3** — Unified the category-keyword/team mapping into one block; replaced two vague "best judgment" calls with deterministic tie-break rules.
+- **v3** — Added `needs_human_review`, so a low-confidence classification gets flagged instead of looking as certain as any other.
+- **v3 → v4** — Added multi-intent support (`TicketBatchResponse` wrapping `tickets: list[TicketResponse]`).
+- **v4 → v5 (current)** — Added `Off-Topic → Unassigned` so unrelated content (jokes, trivia) stops landing in Support's queue.
 
 ## Evaluation
 
-`backend/evaluation/labeled_tickets.py` hand-labels 20 sample tickets with an expected category/priority/team **before** the classifier is run against them — labels are not adjusted after seeing the model's predictions. `backend/evaluation/run_evaluation.py` runs all 20 through the live classifier (`route_ticket`, real GPT-4.1 calls) and writes the results to `backend/evaluation/evaluation.md`.
+`labeled_tickets.py` hand-labels 20 tickets with an expected category/priority/team **before** the classifier runs — labels are never adjusted after seeing predictions. `run_evaluation.py` runs all 20 through the live classifier and writes `evaluation.md`.
 
 ```bash
 cd backend
@@ -165,7 +159,7 @@ source venv/bin/activate
 python evaluation/run_evaluation.py
 ```
 
-**Latest recorded results** (from `backend/evaluation/evaluation.md`):
+**Latest results:**
 
 | Metric | Result |
 |---|---|
@@ -176,18 +170,20 @@ python evaluation/run_evaluation.py
 | Avg. confidence on correct predictions | 92.2 |
 | Avg. confidence on incorrect predictions | 95.0 |
 
-The one miss was a Billing ticket ("My invoice shows the wrong amount...") predicted `High` instead of `Medium` — not one of the three designed edge cases, which is itself a signal that real-world ambiguity doesn't only show up where it was anticipated. Confidence was **not** lower on that miss, so the report explicitly notes that self-reported model confidence should not be treated as a reliable correctness signal on its own. The evaluation also breaks accuracy down by confidence band (90–100, 70–89, below 70) to check whether confidence actually tracks correctness rather than relying on a single average that could hide a badly-miscalibrated band.
+- The one miss: a Billing ticket predicted `High` instead of `Medium` — not one of the 3 designed edge cases.
+- Confidence was **not** lower on that miss, so self-reported confidence alone isn't a reliable correctness signal.
+- Accuracy is also broken down by confidence band (90–100, 70–89, below 70) to check calibration, not just a single average.
 
 ## Testing
 
-**Backend — 28 pytest tests** across four files:
+**Backend — 28 pytest tests:**
 
-- `test_router_service.py` (16 tests): a valid response, multi-intent splitting, response caching (including that different messages aren't conflated), an unparseable response raising without retrying, retry-then-succeed, retry-exhausted, a non-retryable auth error, the 3 required edge cases (angry tone, very short message, ambiguous ticket), `needs_human_review` being recalculated from confidence regardless of the model's own guess (both directions), and `route_ticket_with_diagnostics()`'s success/error contract.
-- `test_routes.py` (2 tests): `/route-ticket` returns a 502 without leaking exception detail on failure, and a 422 for a blank message.
-- `test_ticket_crud.py` (1 test): an integration test against a real database proving `GET /tickets` pagination and ordering — skips (not fails) if no database is reachable.
-- `test_ticket_schema.py` (9 tests): message validation (blank, whitespace, max length), `TicketBatchResponse`'s non-empty `tickets` constraint, and the `Off-Topic`/`Unassigned` category/team pairing.
+- `test_router_service.py` (16) — valid & multi-intent responses, caching, retries, non-retryable errors, the 3 required edge cases, `needs_human_review` recompute, `route_ticket_with_diagnostics()`'s success/error contract.
+- `test_routes.py` (2) — clean 502 with no leaked detail, 422 on a blank message.
+- `test_ticket_crud.py` (1) — real-database pagination/ordering check (skips if no DB is reachable).
+- `test_ticket_schema.py` (9) — message validation, non-empty `tickets` constraint, `Off-Topic`/`Unassigned` pairing.
 
-All OpenAI-dependent tests mock `client.responses.parse`, so the suite makes no real network calls and spends no API credits.
+All OpenAI calls are mocked — no real network calls, no API cost.
 
 ```bash
 cd backend
@@ -197,9 +193,9 @@ pytest tests/ -v
 
 **Frontend — 10 Vitest + React Testing Library tests:**
 
-- `Badge.test.jsx` (4 tests): renders nothing without a label, applies the correct priority/sentiment color class, falls back to a default style for an unrecognized value.
-- `TicketForm.test.jsx` (4 tests): inline validation on empty submit, submits and clears the textarea, disables inputs while loading, surfaces a server-side error passed in via props.
-- `TicketChart.test.jsx` (2 tests): shows an empty state with no data, switches between category/priority/sentiment tabs.
+- `Badge.test.jsx` (4) — label rendering, priority/sentiment color classes, default fallback.
+- `TicketForm.test.jsx` (4) — inline validation, submit/clear, loading state, server error display.
+- `TicketChart.test.jsx` (2) — empty state, tab switching.
 
 ```bash
 cd frontend
