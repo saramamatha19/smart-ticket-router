@@ -686,14 +686,20 @@ p {
   color: var(--text);
 }
 
+/* Caps the table to ~5 visible rows so a growing ticket history stops
+   stretching the whole page -- the table scrolls internally instead. */
 .table-wrapper {
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: 268px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 4px;
+  margin-top: 0;
   font-size: 14px;
 }
 
@@ -713,6 +719,10 @@ th {
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  /* Stays visible while the body scrolls underneath it */
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 th:hover {
