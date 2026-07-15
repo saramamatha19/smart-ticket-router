@@ -17,20 +17,24 @@ from app.schemas.ticket_schema import TicketRequest, TicketResponse
 from app.services.router_service import route_ticket
 
 # CRUD functions
-from app.crud.ticket_crud import save_ticket, get_all_tickets, get_ticket_count, get_ticket_stats
+from app.crud.ticket_crud import save_tickets, get_all_tickets, get_ticket_count, get_ticket_stats
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-# Route a ticket using AI
-@router.post("/route-ticket", response_model=TicketResponse)
+# Route a ticket using AI. A message with multiple independent requests
+# (e.g. a billing issue and an unrelated joke request) comes back as
+# multiple entries -- one per request -- each routed/classified on its
+# own, which is why this returns a list even for the common single-intent
+# case.
+@router.post("/route-ticket", response_model=list[TicketResponse])
 def classify_ticket(ticket: TicketRequest, db: Session = Depends(get_db)):
 
     try:
-        # Get AI response
-        result = route_ticket(ticket.message)
+        # Get AI response(s) -- one per distinct request in the message
+        results = route_ticket(ticket.message)
 
     except Exception:
         # Log the full detail server-side; never expose raw exception
@@ -43,10 +47,10 @@ def classify_ticket(ticket: TicketRequest, db: Session = Depends(get_db)):
         )
 
     # Save to PostgreSQL
-    save_ticket(db, ticket.message, result)
+    save_tickets(db, ticket.message, results)
 
-    # Return AI response
-    return result
+    # Return AI response(s)
+    return results
 
 
 # Get saved tickets, newest first.

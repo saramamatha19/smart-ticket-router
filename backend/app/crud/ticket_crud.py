@@ -1,17 +1,22 @@
 # Used to interact with the database
 
+# Used to generate a shared group_id for tickets split from one message
+import uuid
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.ticket import Ticket
 
 
-# Save a ticket into PostgreSQL
-def save_ticket(db: Session, message, ai_result):
+# Save a single ticket into PostgreSQL
+def save_ticket(db: Session, message, ai_result, group_id=None):
 
     ticket = Ticket(
 
         message=message,
+
+        group_id=group_id,
 
         category=ai_result.category,
 
@@ -48,6 +53,17 @@ def save_ticket(db: Session, message, ai_result):
     db.refresh(ticket)
 
     return ticket
+
+
+# Save every sub-ticket produced from one submitted message. A message
+# with a single intent still goes through this path with a one-item
+# list -- group_id is only meaningful (and only worth stamping) once
+# there's more than one row to tie together.
+def save_tickets(db: Session, message, ai_results):
+
+    group_id = str(uuid.uuid4()) if len(ai_results) > 1 else None
+
+    return [save_ticket(db, message, ai_result, group_id=group_id) for ai_result in ai_results]
 
 
 # Get tickets, newest first. limit/offset are optional so the existing

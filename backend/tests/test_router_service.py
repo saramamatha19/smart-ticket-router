@@ -16,7 +16,7 @@ from openai import (
     RateLimitError,
 )
 
-from app.schemas.ticket_schema import TicketResponse
+from app.schemas.ticket_schema import TicketBatchResponse, TicketResponse
 from app.services import router_service
 from tests.helpers import fake_response
 
@@ -51,6 +51,13 @@ def make_ticket_response(**overrides):
     return TicketResponse(**defaults)
 
 
+def make_batch(*tickets):
+    """Wraps one or more TicketResponse objects the way the real
+    Structured Outputs call would -- route_ticket() reads `.tickets`
+    off of whatever `.output_parsed` returns."""
+    return TicketBatchResponse(tickets=list(tickets))
+
+
 def make_parsed_response(output_parsed):
     """Stands in for openai's ParsedResponse. router_service only ever
     touches `.output_parsed`, so that's the only attribute we fake."""
@@ -69,10 +76,41 @@ def patch_parse(**kwargs):
 def test_valid_ai_response_is_returned():
     expected = make_ticket_response()
 
-    with patch_parse(return_value=make_parsed_response(expected)) as mock_parse:
+    with patch_parse(return_value=make_parsed_response(make_batch(expected))) as mock_parse:
         result = router_service.route_ticket("I was charged twice, please refund me.")
 
-    assert result == expected
+    assert result == [expected]
+    mock_parse.assert_called_once()
+
+
+# ---------------------------------------------------------------------
+# Multi-intent: a message with several independent requests comes back
+# as one TicketResponse per request, not merged/averaged into one.
+# ---------------------------------------------------------------------
+def test_multi_intent_message_returns_one_ticket_per_request():
+    billing_ticket = make_ticket_response(category="Billing", assigned_team="Finance")
+    joke_ticket = make_ticket_response(
+        category="General",
+        priority="Low",
+        assigned_team="Support",
+        reason="No concrete support signal for this part of the message.",
+        confidence=60,
+        sentiment="Neutral",
+        summary="Customer asked for a joke.",
+        keywords=["joke"],
+        estimated_resolution_time="3-5 Business Days",
+        suggested_reply="Happy to help with your billing issue above!",
+        escalation_needed=False,
+    )
+
+    with patch_parse(
+        return_value=make_parsed_response(make_batch(billing_ticket, joke_ticket))
+    ) as mock_parse:
+        result = router_service.route_ticket(
+            "I was charged twice this month. Also, tell me a joke."
+        )
+
+    assert result == [billing_ticket, joke_ticket]
     mock_parse.assert_called_once()
 
 
@@ -83,12 +121,12 @@ def test_identical_repeat_message_is_served_from_cache():
     expected = make_ticket_response()
     message = "My WiFi keeps dropping every few minutes"
 
-    with patch_parse(return_value=make_parsed_response(expected)) as mock_parse:
+    with patch_parse(return_value=make_parsed_response(make_batch(expected))) as mock_parse:
         first = router_service.route_ticket(message)
         second = router_service.route_ticket(message)
 
-    assert first == expected
-    assert second == expected
+    assert first == [expected]
+    assert second == [expected]
     mock_parse.assert_called_once()  # the second call must be served from cache
 
 
@@ -99,13 +137,16 @@ def test_different_messages_are_not_conflated_by_the_cache():
     )
 
     with patch_parse(
-        side_effect=[make_parsed_response(billing_response), make_parsed_response(network_response)]
+        side_effect=[
+            make_parsed_response(make_batch(billing_response)),
+            make_parsed_response(make_batch(network_response)),
+        ]
     ) as mock_parse:
         result_a = router_service.route_ticket("My invoice is wrong")
         result_b = router_service.route_ticket("My VPN won't connect")
 
-    assert result_a.category == "Billing"
-    assert result_b.category == "Network"
+    assert result_a[0].category == "Billing"
+    assert result_b[0].category == "Network"
     assert mock_parse.call_count == 2
 
 
@@ -134,11 +175,11 @@ def test_retry_succeeds_after_one_transient_failure():
     transient_error = RateLimitError("Rate limited", response=fake_response(429), body=None)
 
     with patch_parse(
-        side_effect=[transient_error, make_parsed_response(expected)]
+        side_effect=[transient_error, make_parsed_response(make_batch(expected))]
     ) as mock_parse, patch("app.services.router_service.time.sleep") as mock_sleep:
         result = router_service.route_ticket("a message")
 
-    assert result == expected
+    assert result == [expected]
     assert mock_parse.call_count == 2
     mock_sleep.assert_called_once()  # backoff happened between attempts
 
@@ -189,10 +230,10 @@ def test_angry_tone_ticket():
         escalation_needed=True,
     )
 
-    with patch_parse(return_value=make_parsed_response(expected)):
+    with patch_parse(return_value=make_parsed_response(make_batch(expected))):
         result = router_service.route_ticket(
             "THIS IS RIDICULOUS!!! My account is LOCKED and nobody replies!!!"
-        )
+        )[0]
 
     assert result.sentiment == "Angry"
     assert result.priority == "High"
@@ -208,8 +249,8 @@ def test_very_short_message_ticket():
         escalation_needed=False,
     )
 
-    with patch_parse(return_value=make_parsed_response(expected)):
-        result = router_service.route_ticket("Help")
+    with patch_parse(return_value=make_parsed_response(make_batch(expected))):
+        result = router_service.route_ticket("Help")[0]
 
     assert result.category == "General"
     assert result.priority == "Low"
@@ -225,8 +266,8 @@ def test_ambiguous_ticket():
         escalation_needed=False,
     )
 
-    with patch_parse(return_value=make_parsed_response(expected)):
-        result = router_service.route_ticket("Something is wrong with my application.")
+    with patch_parse(return_value=make_parsed_response(make_batch(expected))):
+        result = router_service.route_ticket("Something is wrong with my application.")[0]
 
     assert result.category == "Technical"
     assert result.priority == "Low"
@@ -243,8 +284,8 @@ def test_low_confidence_is_flagged_for_human_review_even_if_model_says_no():
         update={"needs_human_review": False}
     )
 
-    with patch_parse(return_value=make_parsed_response(model_reported)):
-        result = router_service.route_ticket("a vague message")
+    with patch_parse(return_value=make_parsed_response(make_batch(model_reported))):
+        result = router_service.route_ticket("a vague message")[0]
 
     assert result.confidence == 30
     assert result.needs_human_review is True
@@ -255,8 +296,8 @@ def test_high_confidence_is_not_flagged_for_human_review_even_if_model_says_yes(
         update={"needs_human_review": True}
     )
 
-    with patch_parse(return_value=make_parsed_response(model_reported)):
-        result = router_service.route_ticket("a clear message")
+    with patch_parse(return_value=make_parsed_response(make_batch(model_reported))):
+        result = router_service.route_ticket("a clear message")[0]
 
     assert result.confidence == 90
     assert result.needs_human_review is False
@@ -268,7 +309,7 @@ def test_high_confidence_is_not_flagged_for_human_review_even_if_model_says_yes(
 # ---------------------------------------------------------------------
 def test_diagnostics_returns_structured_success_with_telemetry():
     expected = make_ticket_response(confidence=88)
-    mock_response = make_parsed_response(expected)
+    mock_response = make_parsed_response(make_batch(expected))
     mock_response.usage.input_tokens = 120
     mock_response.usage.output_tokens = 60
     mock_response.usage.total_tokens = 180
@@ -278,7 +319,7 @@ def test_diagnostics_returns_structured_success_with_telemetry():
 
     assert outcome["success"] is True
     assert outcome["error"] is None
-    assert outcome["ticket"].category == expected.category
+    assert outcome["tickets"][0].category == expected.category
     assert outcome["input_tokens"] == 120
     assert outcome["output_tokens"] == 60
     assert outcome["total_tokens"] == 180
@@ -294,7 +335,7 @@ def test_diagnostics_returns_structured_error_instead_of_raising_when_retries_ex
         outcome = router_service.route_ticket_with_diagnostics("a message")
 
     assert outcome["success"] is False
-    assert outcome["ticket"] is None
+    assert outcome["tickets"] is None
     assert outcome["error"]["type"] == "InternalServerError"
 
 
@@ -303,5 +344,5 @@ def test_diagnostics_returns_structured_error_for_unparseable_response():
         outcome = router_service.route_ticket_with_diagnostics("a message")
 
     assert outcome["success"] is False
-    assert outcome["ticket"] is None
+    assert outcome["tickets"] is None
     assert outcome["error"]["type"] == "UnparseableResponse"

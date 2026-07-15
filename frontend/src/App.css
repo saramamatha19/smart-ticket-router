@@ -497,6 +497,24 @@ p {
   gap: 12px;
 }
 
+.result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.multi-intent-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+}
+
 .routing-time {
   display: inline-flex;
   align-items: center;

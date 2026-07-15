@@ -82,9 +82,28 @@ class TicketDB(TicketResponse):
 # Alias for reviewers/tooling that expect this exact name. TicketResponse
 # and TicketRouting are the same model — see PROMPT_CHANGELOG.md /
 # LEARNINGS.md for why this project uses OpenAI Structured Outputs
-# (`text_format=TicketResponse` in router_service.py) instead of
+# (`text_format=TicketBatchResponse` in router_service.py) instead of
 # `response_format={"type": "json_object"}` + manual `model_validate_json()`.
 TicketRouting = TicketResponse
+
+
+# --------------------------------------------------
+# Wraps one or more TicketResponse objects — a single customer message
+# can contain multiple distinct, independent requests (e.g. a billing
+# question and an unrelated joke request) that belong to different
+# categories/teams. This is the actual `text_format` passed to OpenAI
+# Structured Outputs (see app/services/router_service.py); TicketResponse
+# above is still the per-request/per-intent shape.
+# --------------------------------------------------
+class TicketBatchResponse(BaseModel):
+    tickets: list[TicketResponse] = Field(
+        min_length=1,
+        description=(
+            "One fully-classified entry per distinct request/intent found "
+            "in the message. A single-intent message still produces a "
+            "list with exactly one entry."
+        ),
+    )
 
 '''
 Pydantic validates incoming requests and outgoing responses.

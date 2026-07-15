@@ -27,9 +27,10 @@ from openai import (
 # Import our prompt
 from app.prompts.ticket_prompt import SYSTEM_PROMPT
 
-# Import our response schema — this doubles as the JSON Schema that
-# OpenAI Structured Outputs enforces at the API level
-from app.schemas.ticket_schema import TicketResponse
+# Import our response schemas — TicketBatchResponse doubles as the JSON
+# Schema that OpenAI Structured Outputs enforces at the API level;
+# TicketResponse is the per-request/per-intent shape inside it
+from app.schemas.ticket_schema import TicketBatchResponse, TicketResponse
 
 
 # Load .env variables
@@ -105,9 +106,10 @@ CONFIDENCE_REVIEW_THRESHOLD = 50
 def _call_openai(message: str):
     """
     Calls the OpenAI Responses API with Structured Outputs
-    (text_format=TicketResponse), so the response is guaranteed by
-    OpenAI to be valid JSON matching TicketResponse's schema — this
-    replaces relying on prompt instructions alone.
+    (text_format=TicketBatchResponse), so the response is guaranteed by
+    OpenAI to be valid JSON matching that schema — a `tickets` array
+    with one fully-classified TicketResponse per distinct request found
+    in the message — this replaces relying on prompt instructions alone.
 
     Only retries transient errors (rate limits, timeouts, network
     issues, temporary server errors), with exponential backoff.
@@ -127,7 +129,7 @@ def _call_openai(message: str):
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": message},
                 ],
-                text_format=TicketResponse,
+                text_format=TicketBatchResponse,
                 timeout=REQUEST_TIMEOUT_SECONDS,
                 temperature=MODEL_TEMPERATURE,
             )
@@ -181,9 +183,11 @@ def _apply_human_review_flag(result: TicketResponse) -> TicketResponse:
 
 
 @lru_cache(maxsize=ROUTE_TICKET_CACHE_SIZE)
-def route_ticket(message: str) -> TicketResponse:
+def route_ticket(message: str) -> list[TicketResponse]:
     """
-    Sends the support ticket to GPT and returns a validated TicketResponse.
+    Sends the support ticket to GPT and returns one validated
+    TicketResponse per distinct request found in the message (a
+    single-intent message still returns a one-item list).
 
     JSON schema conformance is guaranteed by OpenAI Structured Outputs,
     not by prompt instructions or post-hoc JSON repair.
@@ -208,10 +212,10 @@ def route_ticket(message: str) -> TicketResponse:
         # Structured Outputs didn't produce a parseable response
         # (e.g. the model refused). This is a content/schema failure,
         # not a transient one, so it is not retried.
-        logger.error("AI response could not be parsed into TicketResponse")
+        logger.error("AI response could not be parsed into TicketBatchResponse")
         raise ValueError("AI did not return a valid structured response")
 
-    return _apply_human_review_flag(result)
+    return [_apply_human_review_flag(ticket) for ticket in result.tickets]
 
 
 def route_ticket_with_diagnostics(message: str) -> dict:
@@ -235,7 +239,7 @@ def route_ticket_with_diagnostics(message: str) -> dict:
         logger.error("route_ticket_with_diagnostics: call failed", exc_info=True)
         return {
             "success": False,
-            "ticket": None,
+            "tickets": None,
             "error": {"type": exc.__class__.__name__, "message": str(exc)},
             "latency_ms": None,
             "input_tokens": None,
@@ -250,7 +254,7 @@ def route_ticket_with_diagnostics(message: str) -> dict:
         logger.error("route_ticket_with_diagnostics: unparseable response")
         return {
             "success": False,
-            "ticket": None,
+            "tickets": None,
             "error": {
                 "type": "UnparseableResponse",
                 "message": "AI did not return a valid structured response",
@@ -263,7 +267,7 @@ def route_ticket_with_diagnostics(message: str) -> dict:
 
     return {
         "success": True,
-        "ticket": _apply_human_review_flag(result),
+        "tickets": [_apply_human_review_flag(ticket) for ticket in result.tickets],
         "error": None,
         "latency_ms": getattr(response, "_latency_ms", None),
         "input_tokens": usage.input_tokens if usage else None,

@@ -37,11 +37,16 @@ def run():
 
         if outcome["success"]:
             parsed += 1
-            ticket = outcome["ticket"]
-            status = f"OK -> {ticket.category}/{ticket.priority} (confidence={ticket.confidence})"
-            if ticket.needs_human_review:
-                review_flagged += 1
-                status += " [NEEDS HUMAN REVIEW]"
+            # A message can split into multiple sub-tickets; summarize
+            # each one on its own segment of the status line.
+            segments = []
+            for ticket in outcome["tickets"]:
+                segment = f"{ticket.category}/{ticket.priority} (confidence={ticket.confidence})"
+                if ticket.needs_human_review:
+                    review_flagged += 1
+                    segment += " [NEEDS HUMAN REVIEW]"
+                segments.append(segment)
+            status = "OK -> " + " | ".join(segments)
         else:
             status = f"FAILED -> {outcome['error']['type']}: {outcome['error']['message']}"
 

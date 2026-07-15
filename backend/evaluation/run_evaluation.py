@@ -33,7 +33,13 @@ def run():
         print(f"[{i:02}/{len(LABELED_TICKETS)}] routing: {message[:60]}...")
 
         try:
-            prediction = route_ticket(message)
+            # The labeled evaluation set is single-intent by design (each
+            # ticket has one expected category/priority/team), so grading
+            # uses the first entry route_ticket() returns. A message that
+            # legitimately splits into multiple tickets is a router_service
+            # concern verified separately, not something this fixed label
+            # set exercises.
+            prediction = route_ticket(message)[0]
             category_ok = prediction.category == ticket["expected_category"]
             priority_ok = prediction.priority == ticket["expected_priority"]
             team_ok = prediction.assigned_team == ticket["expected_team"]

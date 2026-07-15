@@ -21,8 +21,9 @@ import { Bot } from "lucide-react";
 
 function App() {
 
-  // Store AI response
-  const [result, setResult] = useState(null);
+  // Store AI response(s) -- a message with multiple independent requests
+  // routes to multiple entries, one per request
+  const [results, setResults] = useState([]);
 
   // Store all tickets
   const [tickets, setTickets] = useState([]);
@@ -90,13 +91,17 @@ function App() {
 
       const elapsedMs = performance.now() - startedAt;
 
-      // Save AI result
-      setResult(response.data);
+      // Save AI result(s)
+      setResults(response.data);
       setLastRoutingTimeMs(elapsedMs);
       setRoutingTimes((prev) => [...prev, elapsedMs]);
 
-      // Show success toast
-      setToast({ type: "success", message: "Ticket routed successfully." });
+      // Show success toast, calling out a multi-intent split
+      const toastMessage =
+        response.data.length > 1
+          ? `Ticket split into ${response.data.length} separate requests and routed.`
+          : "Ticket routed successfully.";
+      setToast({ type: "success", message: toastMessage });
 
       // Reload ticket history and dashboard stats
       await Promise.all([loadTickets(), loadStats()]);
@@ -145,8 +150,8 @@ function App() {
           <TicketChart stats={stats} />
         </div>
 
-        {/* AI Result — full width, only appears once a ticket has been routed */}
-        <TicketResult result={result} routingTimeMs={lastRoutingTimeMs} />
+        {/* AI Result(s) — full width, only appears once a ticket has been routed */}
+        <TicketResult results={results} routingTimeMs={lastRoutingTimeMs} />
 
         {/* Ticket History */}
         <TicketHistory tickets={tickets} />

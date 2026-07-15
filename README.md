@@ -1,4 +1,4 @@
-# 🎫 Smart Ticket Router
+# Smart Ticket Router
 
 An AI-powered support ticket classifier. A customer message goes in; a structured, validated routing decision comes out — category, priority, assigned team, reasoning, sentiment, confidence, a suggested reply, and more — backed by **GPT-4.1** and a **PostgreSQL** history/analytics dashboard.
 

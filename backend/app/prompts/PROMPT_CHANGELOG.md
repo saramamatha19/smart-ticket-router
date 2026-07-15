@@ -1,7 +1,7 @@
 # Prompt Changelog
 
-The three versions in `versions/` (`v1.txt`, `v2.txt`, `v3.txt`) track the
-system prompt's evolution. `v3.txt` is byte-for-byte what ships in
+The versions in `versions/` (`v1.txt`, `v2.txt`, `v3.txt`, `v4.txt`) track
+the system prompt's evolution. `v4.txt` is byte-for-byte what ships in
 `ticket_prompt.py` today. `v1.txt` and `v2.txt` are reconstructed from the
 evolution already narrated in the root `README.md`'s "Prompt Engineering"
 deep dive (which described the changes in prose before this folder
@@ -57,7 +57,7 @@ any concrete symptom if one exists, defaulting to
 `General / Low / Support` only when there is truly no signal at all —
 the same default used for very-short messages, for the same reason.
 
-## v3 (current): added `needs_human_review`
+## v3 -> v4: added `needs_human_review`
 
 **What broke:** Nothing observed yet in production, since this ships
 in the same pass as the field itself — but the risk this closes is
@@ -73,3 +73,26 @@ on `confidence < CONFIDENCE_REVIEW_THRESHOLD` (50, on this project's
 0-100 scale) before the response ever leaves `route_ticket()` — so the
 flag can't drift from the threshold due to model inconsistency, the
 way a model-computed boolean could.
+
+## v4 (current): multi-intent messages now split into multiple tickets
+
+**What broke:** A single customer message could contain more than one
+independent request (e.g. "I was charged twice, also tell me a joke"),
+but the schema only ever had room for one classification. The model
+was forced to pick a single category/team for the whole message, so
+one of the requests was always silently dropped or blended into a
+classification that didn't really fit it.
+
+**Fix:** `TicketResponse` (one classification) is now wrapped in a new
+`TicketBatchResponse` with a `tickets: list[TicketResponse]` field —
+that's the actual `text_format` passed to Structured Outputs now (see
+`router_service.py`). The prompt gained a MULTI-INTENT MESSAGES section
+instructing the model to emit one fully-independent classification per
+distinct request, with an explicit rule for when NOT to split (a single
+issue described across multiple sentences or symptoms is still one
+ticket). `route_ticket()` returns `list[TicketResponse]` — a
+single-intent message still returns a one-item list, so this is not a
+special case downstream, just the common case of the array. Each
+sub-ticket is saved as its own row in `tickets`, tied together by a
+shared `group_id` (see `app/models/ticket.py`) so history/reporting can
+still tell they came from one submission.

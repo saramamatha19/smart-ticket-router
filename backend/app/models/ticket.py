@@ -20,6 +20,13 @@ class Ticket(Base):
     # Customer's support message
     message = Column(String, nullable=False)
 
+    # Ties multiple rows together when one submitted message contained
+    # several independent requests split into separate tickets (see
+    # router_service.route_ticket / TicketBatchResponse). Null for
+    # tickets saved before this existed. Not unique -- shared by every
+    # sub-ticket that came from the same submission.
+    group_id = Column(String, nullable=True, index=True)
+
     # AI predicted category — indexed since /tickets/stats groups by it
     category = Column(String, nullable=False, index=True)
 

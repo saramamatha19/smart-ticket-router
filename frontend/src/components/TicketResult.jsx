@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, Clock3, Copy, Check, Tag, Users, Eye } from "lucide-react";
+import { AlertTriangle, Clock3, Copy, Check, Tag, Users, Eye, Layers } from "lucide-react";
 import Badge from "./Badge";
 
 // Visual meter for the AI's confidence score (0-100)
@@ -19,16 +19,13 @@ function ConfidenceMeter({ value }) {
   );
 }
 
-// TicketResult Component — renders the full AI analysis for the latest ticket
-function TicketResult({ result, routingTimeMs }) {
+// Renders the full AI analysis for a single classified request. A
+// message with multiple independent requests renders one of these per
+// request, so this only ever knows about its own slice of the ticket.
+function SingleTicketResult({ result, routingTimeMs }) {
 
   // Whether the "Copy" button was just clicked (for button feedback)
   const [copied, setCopied] = useState(false);
-
-  // Don't show anything until we have a result
-  if (!result) {
-    return null;
-  }
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(result.suggested_reply);
@@ -118,6 +115,43 @@ function TicketResult({ result, routingTimeMs }) {
         </div>
         <p>{result.suggested_reply}</p>
       </div>
+
+    </div>
+  );
+}
+
+// TicketResult Component — renders one AI analysis card per distinct
+// request found in the latest ticket. Most tickets contain a single
+// request and render exactly one card; a message with multiple
+// independent requests (e.g. a billing issue and an unrelated
+// question) renders one card per request, each routed to its own team.
+function TicketResult({ results, routingTimeMs }) {
+
+  // Don't show anything until we have at least one result
+  if (!results || results.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="result-list">
+
+      {results.length > 1 && (
+        <div className="multi-intent-banner">
+          <Layers size={16} />
+          <span>
+            This message contained {results.length} separate requests — each was routed
+            independently below.
+          </span>
+        </div>
+      )}
+
+      {results.map((result, index) => (
+        <SingleTicketResult
+          key={`${result.category}-${result.assigned_team}-${index}`}
+          result={result}
+          routingTimeMs={index === 0 ? routingTimeMs : null}
+        />
+      ))}
 
     </div>
   );
