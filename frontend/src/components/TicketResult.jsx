@@ -73,7 +73,9 @@ function SingleTicketResult({ result, routingTimeMs }) {
 
         <div className="result-item">
           <span className="result-label"><Users size={14} /> Assigned Team</span>
-          <span className="result-value">{result.assigned_team}</span>
+          <span className={`result-value ${result.assigned_team === "Unassigned" ? "result-value-muted" : ""}`}>
+            {result.assigned_team}
+          </span>
         </div>
 
         <div className="result-item">

@@ -34,14 +34,14 @@ class TicketRequest(BaseModel):
 # the allowed values here are a hard guarantee, not just a prompt hint.
 # --------------------------------------------------
 class TicketResponse(BaseModel):
-    category: Literal["Billing", "Technical", "Sales", "General", "Network"] = Field(
+    category: Literal["Billing", "Technical", "Sales", "General", "Network", "Off-Topic"] = Field(
         description="The support category this ticket belongs to."
     )
     priority: Literal["High", "Medium", "Low"] = Field(
         description="Urgency of the ticket based on business impact."
     )
     assigned_team: Literal[
-        "Finance", "Engineering", "Network Operations", "Sales", "Support"
+        "Finance", "Engineering", "Network Operations", "Sales", "Support", "Unassigned"
     ] = Field(description="The team responsible for handling this ticket.")
     reason: str = Field(description="One-sentence explanation for the routing decision.")
 

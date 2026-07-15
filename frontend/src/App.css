@@ -503,6 +503,11 @@ p {
   gap: 20px;
 }
 
+.result-value-muted {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .multi-intent-banner {
   display: flex;
   align-items: center;

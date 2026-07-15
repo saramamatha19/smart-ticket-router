@@ -69,3 +69,19 @@ def test_batch_response_accepts_multiple_tickets():
 def test_batch_response_rejects_an_empty_tickets_list():
     with pytest.raises(ValidationError):
         TicketBatchResponse(tickets=[])
+
+
+def test_off_topic_category_and_unassigned_team_are_valid():
+    ticket = _make_ticket_response(
+        category="Off-Topic",
+        priority="Low",
+        assigned_team="Unassigned",
+        estimated_resolution_time="N/A - no action required",
+    )
+    assert ticket.category == "Off-Topic"
+    assert ticket.assigned_team == "Unassigned"
+
+
+def test_off_topic_category_rejects_a_real_team():
+    with pytest.raises(ValidationError):
+        _make_ticket_response(category="Off-Topic", assigned_team="NotARealTeam")

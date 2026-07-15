@@ -89,16 +89,19 @@ def test_valid_ai_response_is_returned():
 # ---------------------------------------------------------------------
 def test_multi_intent_message_returns_one_ticket_per_request():
     billing_ticket = make_ticket_response(category="Billing", assigned_team="Finance")
+    # The joke half of the message is Off-Topic/Unassigned, not
+    # General/Support -- it's not a support matter at all, so it must
+    # not land in a real team's queue (see PROMPT_CHANGELOG.md v4->v5).
     joke_ticket = make_ticket_response(
-        category="General",
+        category="Off-Topic",
         priority="Low",
-        assigned_team="Support",
-        reason="No concrete support signal for this part of the message.",
-        confidence=60,
+        assigned_team="Unassigned",
+        reason="This request is unrelated to product support and requires no team action.",
+        confidence=95,
         sentiment="Neutral",
         summary="Customer asked for a joke.",
         keywords=["joke"],
-        estimated_resolution_time="3-5 Business Days",
+        estimated_resolution_time="N/A - no action required",
         suggested_reply="Happy to help with your billing issue above!",
         escalation_needed=False,
     )

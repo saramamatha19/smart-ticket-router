@@ -1,7 +1,7 @@
 # Prompt Changelog
 
-The versions in `versions/` (`v1.txt`, `v2.txt`, `v3.txt`, `v4.txt`) track
-the system prompt's evolution. `v4.txt` is byte-for-byte what ships in
+The versions in `versions/` (`v1.txt` through `v5.txt`) track
+the system prompt's evolution. `v5.txt` is byte-for-byte what ships in
 `ticket_prompt.py` today. `v1.txt` and `v2.txt` are reconstructed from the
 evolution already narrated in the root `README.md`'s "Prompt Engineering"
 deep dive (which described the changes in prose before this folder
@@ -57,7 +57,7 @@ any concrete symptom if one exists, defaulting to
 `General / Low / Support` only when there is truly no signal at all —
 the same default used for very-short messages, for the same reason.
 
-## v3 -> v4: added `needs_human_review`
+## v3: also added `needs_human_review` (bundled into the same revision as the fix above)
 
 **What broke:** Nothing observed yet in production, since this ships
 in the same pass as the field itself — but the risk this closes is
@@ -74,7 +74,7 @@ on `confidence < CONFIDENCE_REVIEW_THRESHOLD` (50, on this project's
 flag can't drift from the threshold due to model inconsistency, the
 way a model-computed boolean could.
 
-## v4 (current): multi-intent messages now split into multiple tickets
+## v3 -> v4: multi-intent messages split into multiple tickets
 
 **What broke:** A single customer message could contain more than one
 independent request (e.g. "I was charged twice, also tell me a joke"),
@@ -96,3 +96,26 @@ special case downstream, just the common case of the array. Each
 sub-ticket is saved as its own row in `tickets`, tied together by a
 shared `group_id` (see `app/models/ticket.py`) so history/reporting can
 still tell they came from one submission.
+
+## v4 -> v5 (current): added Off-Topic/Unassigned so unrelated content stops consuming real teams' queues
+
+**What broke:** Once v4 could split a message into multiple tickets,
+the off-topic half of a mixed message (e.g. "tell me a joke") fell
+through EDGE CASE 3's default into `General / Low / Support` — the
+same bucket as legitimate general support inquiries (feedback, product
+info requests). That's a real cost: every joke or trivia question
+routed through the same path landed a ticket in the Support team's
+queue for a human to look at and dismiss, indistinguishable from
+actual work.
+
+**Fix:** Added a new category, `Off-Topic -> Unassigned`, for content
+with no connection to the product/service at all (jokes, small talk,
+general-knowledge trivia). Extended the `category` and `assigned_team`
+Literal enums in `ticket_schema.py` accordingly (no DB migration
+needed — both columns are plain `String`, not native Postgres enums).
+The prompt now draws an explicit line: vague-but-plausibly-support
+content stays `General/Support` (EDGE CASE 3 is unchanged), while
+content that is clearly and entirely unrelated to the product is
+`Off-Topic/Unassigned`, with `priority=Low`,
+`estimated_resolution_time="N/A - no action required"`, and
+`escalation_needed=false` — since no team is ever going to act on it.
