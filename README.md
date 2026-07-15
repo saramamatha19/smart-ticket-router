@@ -118,11 +118,16 @@ frontend/src/{pages,components,services}
 
 ## How It Works
 
-A user types a message into the submission form and submits it. The frontend sends the raw text to `POST /route-ticket`; a blank or whitespace-only message is rejected at the Pydantic layer with a 422 before any AI call happens. The backend hands the message to `route_ticket()`, which sends it, together with the system prompt, to GPT-4.1 through the OpenAI Responses API using `text_format=TicketBatchResponse`. Because Structured Outputs constrains the model's own token generation, the response is guaranteed to be valid JSON containing a `tickets` array — one fully-classified entry per distinct request in the message, even if the message mixed a real support issue with something unrelated like a joke.
-
-For each entry, the backend overwrites `needs_human_review` based on whether `confidence` fell below 50, regardless of what the model itself reported for that field. If the OpenAI call fails with a transient error (rate limit, timeout, network issue, 5xx), it is retried once with exponential backoff; an authentication error, invalid request, or an unparseable response is raised immediately since retrying would only repeat the same failure. An identical repeat message is served from an in-process cache instead of triggering another paid API call.
-
-Each classified entry is saved as its own row in PostgreSQL — rows from a multi-intent submission share a `group_id` so they can still be traced back to one original message — and the full list is returned to the frontend, which renders one result card per entry. The admin dashboard separately polls `GET /tickets` and `GET /tickets/stats` to show ticket history and aggregate analytics.
+1. **Submit.** A user types a message into the submission form. The frontend sends the raw text to `POST /route-ticket`.
+2. **Validate.** A blank or whitespace-only message is rejected at the Pydantic layer with a 422 — before any AI call happens.
+3. **Classify.** The backend hands the message to `route_ticket()`, which sends it, with the system prompt, to GPT-4.1 via the OpenAI Responses API using `text_format=TicketBatchResponse`. Structured Outputs constrains the model's own token generation, so the response is guaranteed to be valid JSON containing a `tickets` array — one fully-classified entry per distinct request in the message, even if the message mixed a real support issue with something unrelated like a joke.
+4. **Handle failures.**
+   - A transient error (rate limit, timeout, network issue, 5xx) is retried once with exponential backoff.
+   - An authentication error, invalid request, or unparseable response is raised immediately — retrying would only repeat the same failure.
+   - An identical repeat message is served from an in-process cache instead of triggering another paid API call.
+5. **Recompute review flag.** For each entry, the backend overwrites `needs_human_review` based on whether `confidence` fell below 50 — regardless of what the model itself reported for that field.
+6. **Persist.** Each classified entry is saved as its own row in PostgreSQL; rows from a multi-intent submission share a `group_id` so they can still be traced back to one original message.
+7. **Respond & display.** The full list is returned to the frontend, which renders one result card per entry. The admin dashboard separately polls `GET /tickets` and `GET /tickets/stats` to show ticket history and aggregate analytics.
 
 ## AI Design
 
