@@ -275,7 +275,11 @@ The app is now available at `http://localhost:5173`.
 ```bash
 curl -X POST http://localhost:8000/route-ticket \
   -H "Content-Type: application/json" \
-  -d "{\"message\": \"I'm facing several issues today.\n1. I was charged twice for my monthly subscription yesterday and would like a refund.\n2. The mobile app crashes immediately after I log in, so I can't access my dashboard.\n3. Something also feels wrong with my account, but I'm not sure what exactly is causing it.\n4. By the way, what's your favorite movie?\"}"
+  -d @- <<'EOF'
+{
+  "message": "I'm facing several issues today.\n1. I was charged twice for my monthly subscription yesterday and would like a refund.\n2. The mobile app crashes immediately after I log in, so I can't access my dashboard.\n3. Something also feels wrong with my account, but I'm not sure what exactly is causing it.\n4. By the way, what's your favorite movie?"
+}
+EOF
 ```
 
 ```json
