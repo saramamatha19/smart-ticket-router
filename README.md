@@ -304,7 +304,29 @@ A message with more than one independent request returns more than one entry in 
 
 ## Screenshots
 
-_Placeholder — add screenshots of the ticket submission form, the AI analysis result, and the admin dashboard here before publishing._
+**Submit a Ticket** — a multi-intent message (a billing complaint, a crash report, a vague account issue, and an off-topic question, all in one submission):
+
+![Submit a Ticket page](docs/screenshots/submit-ticket.png)
+
+**AI Analysis** — the multi-intent banner, plus each independently-routed result:
+
+| Billing (High, escalation flagged) | Technical (High, escalation flagged) |
+|---|---|
+| ![Billing result](docs/screenshots/result-billing.png) | ![Technical result](docs/screenshots/result-technical.png) |
+
+| General (ambiguous, `needs_human_review`) | Off-Topic (Unassigned) |
+|---|---|
+| ![Ambiguous General result](docs/screenshots/result-general-ambiguous.png) | ![Off-Topic result](docs/screenshots/result-offtopic.png) |
+
+**Admin Dashboard** — stats, measured AI routing speed, and ticket distribution by category:
+
+![Admin dashboard overview](docs/screenshots/admin-dashboard.png)
+
+**Ticket distribution by priority**, and **ticket history filtered to `needs_human_review` only**:
+
+| Priority distribution | Needs-review filter |
+|---|---|
+| ![Priority distribution](docs/screenshots/admin-priority-chart.png) | ![Needs human review filter](docs/screenshots/admin-needs-review-filter.png) |
 
 ## Learning Outcomes
 
