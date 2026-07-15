@@ -72,14 +72,54 @@ body {
   margin-bottom: 28px;
 }
 
-.app-header-title {
+.app-header-inner {
   width: 92%;
   max-width: 1200px;
   margin: 0 auto;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.app-header-title {
+  display: flex;
+  align-items: center;
   gap: 14px;
   color: var(--primary);
+}
+
+.app-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.app-nav-link {
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+
+.app-nav-link:hover {
+  color: var(--primary);
+  border-color: var(--border);
+}
+
+.app-nav-link.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary-light);
+}
+
+@media (max-width: 640px) {
+  .app-header-title {
+    flex-wrap: wrap;
+  }
 }
 
 .app-header-title h1 {
@@ -135,27 +175,6 @@ body {
 /* ==========================================================
    Layout grid
    ========================================================== */
-/* Form + Chart: both fixed-height regardless of app state, so
-   stretching them to match never leaves a dangling gap. */
-.top-grid {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 24px;
-  align-items: stretch;
-  margin-bottom: 24px;
-}
-
-.top-grid > * {
-  min-width: 0;
-  margin-bottom: 0;
-}
-
-@media (max-width: 900px) {
-  .top-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* Lets the textarea absorb the card's stretched height instead of
    leaving blank space above the button */
 .card form {
@@ -637,9 +656,11 @@ p {
   border-radius: 999px;
 }
 
+/* Explicit height (not flex/min-height) so recharts' ResponsiveContainer,
+   which sizes itself to 100% of this element, always gets a definite
+   pixel value to resolve against. */
 .chart-body {
-  flex: 1;
-  min-height: 220px;
+  height: 320px;
 }
 
 .chart-body.chart-empty {
