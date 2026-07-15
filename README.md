@@ -78,35 +78,43 @@ UI (TicketResult / TicketHistory / DashboardStats)
 ## Project Structure
 
 ```
-backend/
-  app/
-    router/routes.py         API endpoints: POST /route-ticket, GET /tickets, GET /tickets/stats
-    services/router_service.py  OpenAI call, retry/backoff, caching, human-review logic
-    prompts/ticket_prompt.py    The system prompt sent to GPT-4.1
-    prompts/versions/           v1.txt – v5.txt, the prompt's revision history
-    prompts/PROMPT_CHANGELOG.md What changed between each prompt version, and why
-    schemas/ticket_schema.py    Pydantic request/response models — also the AI's JSON Schema
-    models/ticket.py            SQLAlchemy ORM table (tickets)
-    crud/ticket_crud.py         Database read/write functions
-    database/connection.py      Engine, session factory, Base class
-    database/init_db.py         create_all() table setup
-  evaluation/
-    labeled_tickets.py          20 hand-labeled tickets with expected category/priority/team
-    run_evaluation.py           Runs the labeled set through the live classifier, writes evaluation.md
-    evaluation.md                Latest recorded accuracy results
-  tests/                       pytest suite (router service, routes, schema, CRUD)
-  scripts/
-    seed_tickets.py            Posts 20 demo tickets to a running API
-    batch_summary.py           Runs a batch through route_ticket_with_diagnostics(), prints parse-rate/latency/token summary
-  main.py                      FastAPI app, CORS config, health/db-check endpoints
-frontend/
-  src/
-    pages/UserPage.jsx          Ticket submission page
-    pages/AdminPage.jsx         Analytics dashboard page
-    components/                 TicketForm, TicketResult, TicketHistory, DashboardStats, TicketChart, TimeSavings, Toast, Spinner, Badge
-    services/api.js             Axios client (base URL from VITE_API_URL)
-LEARNINGS.md                  Project retrospective: what failed, hardest edge case, what's next
+backend/app/{router,services,prompts,schemas,models,crud,database}
+backend/{evaluation,tests,scripts}
+frontend/src/{pages,components,services}
 ```
+
+**Backend** (`backend/`)
+
+| Path | Purpose |
+|---|---|
+| `app/router/routes.py` | API endpoints — `POST /route-ticket`, `GET /tickets`, `GET /tickets/stats` |
+| `app/services/router_service.py` | OpenAI call, retry/backoff, caching, human-review logic |
+| `app/prompts/ticket_prompt.py` | The system prompt sent to GPT-4.1 |
+| `app/prompts/versions/` | `v1.txt`–`v5.txt`, the prompt's revision history |
+| `app/prompts/PROMPT_CHANGELOG.md` | What changed between each prompt version, and why |
+| `app/schemas/ticket_schema.py` | Pydantic request/response models — also the AI's JSON Schema |
+| `app/models/ticket.py` | SQLAlchemy ORM table (`tickets`) |
+| `app/crud/ticket_crud.py` | Database read/write functions |
+| `app/database/connection.py` | Engine, session factory, `Base` class |
+| `app/database/init_db.py` | `create_all()` table setup |
+| `evaluation/labeled_tickets.py` | 20 hand-labeled tickets with expected category/priority/team |
+| `evaluation/run_evaluation.py` | Runs the labeled set through the live classifier, writes `evaluation.md` |
+| `evaluation/evaluation.md` | Latest recorded accuracy results |
+| `tests/` | pytest suite (router service, routes, schema, CRUD) |
+| `scripts/seed_tickets.py` | Posts 20 demo tickets to a running API |
+| `scripts/batch_summary.py` | Runs a batch through `route_ticket_with_diagnostics()`, prints a parse-rate/latency/token summary |
+| `main.py` | FastAPI app, CORS config, health/db-check endpoints |
+
+**Frontend** (`frontend/`)
+
+| Path | Purpose |
+|---|---|
+| `src/pages/UserPage.jsx` | Ticket submission page |
+| `src/pages/AdminPage.jsx` | Analytics dashboard page |
+| `src/components/` | `TicketForm`, `TicketResult`, `TicketHistory`, `DashboardStats`, `TicketChart`, `TimeSavings`, `Toast`, `Spinner`, `Badge` |
+| `src/services/api.js` | Axios client (base URL from `VITE_API_URL`) |
+
+`LEARNINGS.md` (repo root) — project retrospective: what failed, the hardest edge case, and what's next.
 
 ## How It Works
 
