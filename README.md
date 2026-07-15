@@ -306,24 +306,6 @@ A message with more than one independent request returns more than one entry in 
 
 _Placeholder — add screenshots of the ticket submission form, the AI analysis result, and the admin dashboard here before publishing._
 
-## Limitations
-
-- **English-only.** The prompt and 20-ticket evaluation set are English-only; other languages are neither explicitly handled nor tested.
-- **`needs_human_review` is a flag, not a queue.** It surfaces as a banner on the latest result and a count/filter toggle in ticket history — there's no dedicated queue view built specifically for reviewers to work through.
-- **No feedback loop.** A human correcting an AI decision isn't captured anywhere, so real-world accuracy beyond the 20-ticket evaluation set isn't measured.
-- **`suggested_reply` isn't grounded in real data.** It's generated from the ticket text alone (explicitly instructed not to invent account/order details), so it stays generic rather than referencing actual policy or history.
-- **Single fixed `temperature=0.2`.** The value has a written rationale but hasn't been measured against alternatives on the evaluation set.
-- **Deliberately modest scale.** This project targets a strong demo, not production scale — no API versioning, no async request handling.
-- **Self-reported model confidence isn't fully reliable.** Confidence was not measurably lower on the one incorrect prediction in the latest evaluation run.
-
-## Future Improvements
-
-- A dedicated human-review queue (filtered by `needs_human_review=true`), not just a badge/toggle.
-- A feedback loop that logs human corrections (`corrected_category`/`corrected_priority`) to measure real-world accuracy over time.
-- A temperature comparison (0, 0.3, 0.7) against the labeled evaluation set to confirm or revise the current `0.2` choice.
-- Explicit, tested multi-language support.
-- RAG-grounded `suggested_reply`, referencing an actual knowledge base/macros library instead of ticket text alone.
-
 ## Learning Outcomes
 
 This project is a working demonstration of:
