@@ -72,7 +72,6 @@ UI (TicketResult / TicketHistory / DashboardStats)
 | **Frontend** | React 19, Vite 8, React Router 7, Axios, Recharts, lucide-react |
 | **AI** | OpenAI GPT-4.1 via the Responses API (`client.responses.parse`, Structured Outputs) |
 | **Database** | PostgreSQL, SQLAlchemy 2.0, psycopg2 |
-| **Testing** | pytest (backend), Vitest + React Testing Library (frontend) |
 | **Development Tools** | ruff (linting), python-dotenv, ESLint |
 
 ## Project Structure
@@ -105,10 +104,6 @@ frontend/src/{pages,components,services}
 | `app/database/init_db.py` | `create_all()` table setup, run automatically on startup (see `main.py`'s `lifespan`) |
 | `evaluation/labeled_tickets.py` | 20 hand-labeled tickets with expected category/priority/team |
 | `evaluation/run_evaluation.py` | Runs the labeled set through the live classifier, writes `evaluation.md` |
-| `evaluation/evaluation.md` | Latest recorded accuracy results |
-| `tests/` | pytest suite (router service, routes, schema, CRUD) |
-| `scripts/seed_tickets.py` | Posts 20 demo tickets to a running API |
-| `scripts/batch_summary.py` | Runs a batch through `route_ticket_with_diagnostics()`, prints a parse-rate/latency/token summary |
 | `main.py` | FastAPI app, CORS config, health/db-check endpoints, startup `lifespan` (table/column bootstrap) |
 
 **Frontend** (`frontend/`)
@@ -182,40 +177,7 @@ python evaluation/run_evaluation.py
 
 - The one miss: a Billing ticket predicted `High` instead of `Medium` — not one of the 3 designed edge cases.
 - Confidence was **not** lower on that miss, so self-reported confidence alone isn't a reliable correctness signal.
-- Accuracy is also broken down by confidence band (90–100, 70–89, below 70) to check calibration, not just a single average.
-
-## Testing
-
-**Backend — 45 pytest tests:**
-
-- `test_router_service.py` (16) — valid & multi-intent responses, caching, retries, non-retryable errors, the 3 required edge cases, `needs_human_review` recompute, `route_ticket_with_diagnostics()`'s success/error contract.
-- `test_routes.py` (2) — clean 502 with no leaked detail, 422 on a blank message (both authenticated as a customer).
-- `test_ticket_crud.py` (1) — real-database pagination/ordering check (skips if no DB is reachable).
-- `test_ticket_schema.py` (9) — message validation, non-empty `tickets` constraint, `Off-Topic`/`Unassigned` pairing.
-- `test_admin_auth.py` (7) — admin login success/failure, `/tickets` and `/tickets/stats` reject missing/invalid/customer-role tokens, an admin token is accepted.
-- `test_customer_auth.py` (10) — register (success, duplicate email, short password), login (success, wrong password, unknown email), `/route-ticket` and `/tickets/mine` reject missing/admin-role tokens, `/tickets/mine` scopes to the caller.
-
-All OpenAI calls are mocked — no real network calls, no API cost.
-
-```bash
-cd backend
-source venv/bin/activate
-pytest tests/ -v
-```
-
-**Frontend — 18 Vitest + React Testing Library tests:**
-
-- `Badge.test.jsx` (4) — label rendering, priority/sentiment color classes, default fallback.
-- `TicketForm.test.jsx` (4) — inline validation, submit/clear, loading state, server error display.
-- `TicketChart.test.jsx` (2) — empty state, tab switching.
-- `AdminLoginPage.test.jsx` (2) — successful login navigates to the dashboard, failed login shows an inline error.
-- `CustomerLoginPage.test.jsx` (2) — successful login navigates to ticket submission, failed login shows an inline error.
-- `CustomerRegisterPage.test.jsx` (4) — successful registration, short password rejected, mismatched passwords rejected, duplicate-email error surfaced.
-
-```bash
-cd frontend
-npm run test
-```
+- Accuracy is also broken down by confidence band (90–100, 70–89, below 70) to check calibration, not just a single average
 
 ## Installation
 
@@ -239,13 +201,6 @@ Copy `.env.example` to `.env` and fill in real values (never commit `.env` — i
 
 ```bash
 cp .env.example .env
-```
-
-Optional demo data:
-
-```bash
-python scripts/seed_tickets.py     # posts 20 sample tickets to a running API
-python scripts/batch_summary.py    # real GPT-4.1 calls; prints parse-rate/latency/token summary
 ```
 
 Run the API:
@@ -339,8 +294,6 @@ curl -X POST http://localhost:8000/route-ticket \
   "message": "I'm facing several issues today.
    I was charged twice for my monthly subscription yesterday and would like a refund.
     The mobile app crashes immediately after I log in, so I can't access my dashboard.
-    Something also feels wrong with my account, but I'm not sure what exactly is causing it.
-    By the way, what's your favorite movie?"
 }
 EOF
 ```
@@ -373,34 +326,6 @@ EOF
     "estimated_resolution_time": "1-4 Hours",
     "suggested_reply": "We're sorry to hear about the app crashing after login. Our engineering team will investigate this issue right away. Thank you for your patience as we work to resolve it.",
     "escalation_needed": true,
-    "needs_human_review": false
-  },
-  {
-    "category": "General",
-    "priority": "Low",
-    "assigned_team": "Support",
-    "reason": "The customer reports a vague issue with their account but provides no specific details, so it is routed to Support for clarification.",
-    "confidence": 60,
-    "sentiment": "Neutral",
-    "summary": "Customer feels something is wrong with their account but cannot specify the issue.",
-    "keywords": ["account issue", "unclear problem", "support", "general"],
-    "estimated_resolution_time": "3-5 Business Days",
-    "suggested_reply": "Thank you for letting us know. Could you please provide more details about what feels wrong with your account? This will help us assist you more effectively.",
-    "escalation_needed": false,
-    "needs_human_review": false
-  },
-  {
-    "category": "Off-Topic",
-    "priority": "Low",
-    "assigned_team": "Unassigned",
-    "reason": "The customer asks a personal question unrelated to support, which is off-topic and requires no action.",
-    "confidence": 100,
-    "sentiment": "Positive",
-    "summary": "Customer asks about the support agent's favorite movie, which is unrelated to support.",
-    "keywords": ["favorite movie", "off-topic", "personal question"],
-    "estimated_resolution_time": "N/A - no action required",
-    "suggested_reply": "Thank you for your question! As an automated support system, I don't have personal preferences, but I'm here to help with any issues you have.",
-    "escalation_needed": false,
     "needs_human_review": false
   }
 ]
