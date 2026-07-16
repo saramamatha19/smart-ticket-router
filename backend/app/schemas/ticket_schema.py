@@ -76,6 +76,7 @@ class TicketDB(TicketResponse):
 
     id: int
     message: str
+    customer_id: int | None = None
     created_at: datetime
 
 

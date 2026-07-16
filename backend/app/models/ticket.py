@@ -1,5 +1,5 @@
 # Import required SQLAlchemy classes
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON, Text
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON, Text, ForeignKey
 
 # Used to automatically store the current date and time
 from datetime import datetime
@@ -19,6 +19,10 @@ class Ticket(Base):
 
     # Customer's support message
     message = Column(String, nullable=False)
+
+    # The logged-in customer who submitted this ticket. Nullable so
+    # tickets saved before customer accounts existed stay valid.
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True, index=True)
 
     # Ties multiple rows together when one submitted message contained
     # several independent requests split into separate tickets (see

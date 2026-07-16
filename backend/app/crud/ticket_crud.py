@@ -10,13 +10,15 @@ from app.models.ticket import Ticket
 
 
 # Save a single ticket into PostgreSQL
-def save_ticket(db: Session, message, ai_result, group_id=None):
+def save_ticket(db: Session, message, ai_result, group_id=None, customer_id=None):
 
     ticket = Ticket(
 
         message=message,
 
         group_id=group_id,
+
+        customer_id=customer_id,
 
         category=ai_result.category,
 
@@ -59,11 +61,14 @@ def save_ticket(db: Session, message, ai_result, group_id=None):
 # with a single intent still goes through this path with a one-item
 # list -- group_id is only meaningful (and only worth stamping) once
 # there's more than one row to tie together.
-def save_tickets(db: Session, message, ai_results):
+def save_tickets(db: Session, message, ai_results, customer_id=None):
 
     group_id = str(uuid.uuid4()) if len(ai_results) > 1 else None
 
-    return [save_ticket(db, message, ai_result, group_id=group_id) for ai_result in ai_results]
+    return [
+        save_ticket(db, message, ai_result, group_id=group_id, customer_id=customer_id)
+        for ai_result in ai_results
+    ]
 
 
 # Get tickets, newest first. limit/offset are optional so the existing
@@ -72,6 +77,23 @@ def save_tickets(db: Session, message, ai_results):
 def get_all_tickets(db: Session, limit: int | None = None, offset: int = 0):
 
     query = db.query(Ticket).order_by(Ticket.id.desc()).offset(offset)
+
+    if limit is not None:
+        query = query.limit(limit)
+
+    return query.all()
+
+
+# A customer's own tickets, newest first -- backs GET /tickets/mine so
+# a customer only ever sees what they submitted, never anyone else's.
+def get_tickets_by_customer(db: Session, customer_id: int, limit: int | None = None, offset: int = 0):
+
+    query = (
+        db.query(Ticket)
+        .filter(Ticket.customer_id == customer_id)
+        .order_by(Ticket.id.desc())
+        .offset(offset)
+    )
 
     if limit is not None:
         query = query.limit(limit)

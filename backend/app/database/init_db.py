@@ -4,10 +4,11 @@ from app.database.connection import engine
 # Import Base
 from app.database.connection import Base
 
-# Import Ticket model. This is not "unused" despite never being
-# referenced by name below -- importing it registers the table on
+# Import the models. Neither is "unused" despite never being referenced
+# by name below -- importing them registers their tables on
 # Base.metadata, which is what create_all() actually reads.
 from app.models.ticket import Ticket  # noqa: F401
+from app.models.customer import Customer  # noqa: F401
 
 
 def create_tables():

@@ -87,7 +87,13 @@ frontend/src/{pages,components,services}
 
 | Path | Purpose |
 |---|---|
-| `app/router/routes.py` | API endpoints — `POST /route-ticket`, `GET /tickets`, `GET /tickets/stats` |
+| `app/router/routes.py` | API endpoints — `POST /route-ticket`, `GET /tickets`, `GET /tickets/stats`, `GET /tickets/mine` |
+| `app/router/auth_routes.py` | `POST /admin/login` — issues a JWT for the hardcoded admin account |
+| `app/router/customer_routes.py` | `POST /register`, `POST /login` — customer account creation/login |
+| `app/auth/security.py` | Password hashing (bcrypt) + role-aware JWT create/decode, shared by both auth flows |
+| `app/auth/dependencies.py` | `get_current_admin` / `get_current_customer` — FastAPI dependencies guarding routes by the JWT's role claim |
+| `app/models/customer.py` | SQLAlchemy ORM table (`customers`) |
+| `app/crud/customer_crud.py` | Database read/write functions for customer accounts |
 | `app/services/router_service.py` | OpenAI call, retry/backoff, caching, human-review logic |
 | `app/prompts/ticket_prompt.py` | The system prompt sent to GPT-4.1 |
 | `app/prompts/versions/` | `v1.txt`–`v5.txt`, the prompt's revision history |
@@ -96,29 +102,33 @@ frontend/src/{pages,components,services}
 | `app/models/ticket.py` | SQLAlchemy ORM table (`tickets`) |
 | `app/crud/ticket_crud.py` | Database read/write functions |
 | `app/database/connection.py` | Engine, session factory, `Base` class |
-| `app/database/init_db.py` | `create_all()` table setup |
+| `app/database/init_db.py` | `create_all()` table setup, run automatically on startup (see `main.py`'s `lifespan`) |
 | `evaluation/labeled_tickets.py` | 20 hand-labeled tickets with expected category/priority/team |
 | `evaluation/run_evaluation.py` | Runs the labeled set through the live classifier, writes `evaluation.md` |
 | `evaluation/evaluation.md` | Latest recorded accuracy results |
 | `tests/` | pytest suite (router service, routes, schema, CRUD) |
 | `scripts/seed_tickets.py` | Posts 20 demo tickets to a running API |
 | `scripts/batch_summary.py` | Runs a batch through `route_ticket_with_diagnostics()`, prints a parse-rate/latency/token summary |
-| `main.py` | FastAPI app, CORS config, health/db-check endpoints |
+| `main.py` | FastAPI app, CORS config, health/db-check endpoints, startup `lifespan` (table/column bootstrap) |
 
 **Frontend** (`frontend/`)
 
 | Path | Purpose |
 |---|---|
-| `src/pages/UserPage.jsx` | Ticket submission page |
-| `src/pages/AdminPage.jsx` | Analytics dashboard page |
-| `src/components/` | `TicketForm`, `TicketResult`, `TicketHistory`, `DashboardStats`, `TicketChart`, `TimeSavings`, `Toast`, `Spinner`, `Badge` |
-| `src/services/api.js` | Axios client (base URL from `VITE_API_URL`) |
+| `src/pages/UserPage.jsx` | Ticket submission page (behind customer login) |
+| `src/pages/MyTicketsPage.jsx` | A customer's own ticket history (behind customer login) |
+| `src/pages/CustomerLoginPage.jsx` / `CustomerRegisterPage.jsx` | Customer login / sign-up forms |
+| `src/pages/AdminPage.jsx` | Analytics dashboard page (behind admin login) |
+| `src/pages/AdminLoginPage.jsx` | Admin login form |
+| `src/components/` | `TicketForm`, `TicketResult`, `TicketHistory`, `DashboardStats`, `TicketChart`, `TimeSavings`, `Toast`, `Spinner`, `Badge`, `ProtectedRoute`, `CustomerProtectedRoute` |
+| `src/context/` | `AuthProvider`/`useAuth` (admin session) and `CustomerAuthProvider`/`useCustomerAuth` (customer session) — two independent JWTs, each in its own `localStorage` slot |
+| `src/services/api.js` | Axios client (base URL from `VITE_API_URL`); attaches the right bearer token (admin or customer) per endpoint |
 
 `LEARNINGS.md` (repo root) — project retrospective: what failed, the hardest edge case, and what's next.
 
 ## How It Works
 
-1. **Submit.** A user types a message into the submission form. The frontend sends the raw text to `POST /route-ticket`.
+1. **Submit.** A logged-in customer types a message into the submission form. The frontend sends the raw text to `POST /route-ticket`, along with their bearer token.
 2. **Validate.** A blank or whitespace-only message is rejected at the Pydantic layer with a 422 — before any AI call happens.
 3. **Classify.** The backend hands the message to `route_ticket()`, which sends it, with the system prompt, to GPT-4.1 via the OpenAI Responses API using `text_format=TicketBatchResponse`. Structured Outputs constrains the model's own token generation, so the response is guaranteed to be valid JSON containing a `tickets` array — one fully-classified entry per distinct request in the message, even if the message mixed a real support issue with something unrelated like a joke.
 4. **Handle failures.**
@@ -126,8 +136,8 @@ frontend/src/{pages,components,services}
    - An authentication error, invalid request, or unparseable response is raised immediately — retrying would only repeat the same failure.
    - An identical repeat message is served from an in-process cache instead of triggering another paid API call.
 5. **Recompute review flag.** For each entry, the backend overwrites `needs_human_review` based on whether `confidence` fell below 50 — regardless of what the model itself reported for that field.
-6. **Persist.** Each classified entry is saved as its own row in PostgreSQL; rows from a multi-intent submission share a `group_id` so they can still be traced back to one original message.
-7. **Respond & display.** The full list is returned to the frontend, which renders one result card per entry. The admin dashboard separately polls `GET /tickets` and `GET /tickets/stats` to show ticket history and aggregate analytics.
+6. **Persist.** Each classified entry is saved as its own row in PostgreSQL, tagged with the submitting customer's `customer_id`; rows from a multi-intent submission share a `group_id` so they can still be traced back to one original message.
+7. **Respond & display.** The full list is returned to the frontend, which renders one result card per entry. The customer can review their own submissions on **My Tickets** (`GET /tickets/mine`); the admin dashboard separately polls `GET /tickets` and `GET /tickets/stats` to show *everyone's* ticket history and aggregate analytics. All three of those routes require being logged in (see [Authentication](#authentication)).
 
 ## AI Design
 
@@ -176,12 +186,14 @@ python evaluation/run_evaluation.py
 
 ## Testing
 
-**Backend — 28 pytest tests:**
+**Backend — 45 pytest tests:**
 
 - `test_router_service.py` (16) — valid & multi-intent responses, caching, retries, non-retryable errors, the 3 required edge cases, `needs_human_review` recompute, `route_ticket_with_diagnostics()`'s success/error contract.
-- `test_routes.py` (2) — clean 502 with no leaked detail, 422 on a blank message.
+- `test_routes.py` (2) — clean 502 with no leaked detail, 422 on a blank message (both authenticated as a customer).
 - `test_ticket_crud.py` (1) — real-database pagination/ordering check (skips if no DB is reachable).
 - `test_ticket_schema.py` (9) — message validation, non-empty `tickets` constraint, `Off-Topic`/`Unassigned` pairing.
+- `test_admin_auth.py` (7) — admin login success/failure, `/tickets` and `/tickets/stats` reject missing/invalid/customer-role tokens, an admin token is accepted.
+- `test_customer_auth.py` (10) — register (success, duplicate email, short password), login (success, wrong password, unknown email), `/route-ticket` and `/tickets/mine` reject missing/admin-role tokens, `/tickets/mine` scopes to the caller.
 
 All OpenAI calls are mocked — no real network calls, no API cost.
 
@@ -191,11 +203,14 @@ source venv/bin/activate
 pytest tests/ -v
 ```
 
-**Frontend — 10 Vitest + React Testing Library tests:**
+**Frontend — 18 Vitest + React Testing Library tests:**
 
 - `Badge.test.jsx` (4) — label rendering, priority/sentiment color classes, default fallback.
 - `TicketForm.test.jsx` (4) — inline validation, submit/clear, loading state, server error display.
 - `TicketChart.test.jsx` (2) — empty state, tab switching.
+- `AdminLoginPage.test.jsx` (2) — successful login navigates to the dashboard, failed login shows an inline error.
+- `CustomerLoginPage.test.jsx` (2) — successful login navigates to ticket submission, failed login shows an inline error.
+- `CustomerRegisterPage.test.jsx` (4) — successful registration, short password rejected, mismatched passwords rejected, duplicate-email error surfaced.
 
 ```bash
 cd frontend
@@ -252,12 +267,27 @@ npm run dev
 
 The app is now available at `http://localhost:5173`.
 
+## Authentication
+
+There are two independent auth flows, sharing one JWT implementation (`app/auth/security.py`) but never valid for each other's routes — every token carries a `role` claim (`"admin"` or `"customer"`) that the guarding dependency checks:
+
+- **Admin** — a single hardcoded account (`ADMIN_USERNAME` / `ADMIN_PASSWORD` in `backend/.env`, no DB row). `POST /admin/login` checks the submitted credentials against those env vars and, on success, returns a JWT with `role: "admin"`. `GET /tickets` and `GET /tickets/stats` require it.
+- **Customer** — a real account, stored in the `customers` table (`app/models/customer.py`), password hashed with bcrypt. `POST /register` creates one (rejecting a duplicate email with 409) and `POST /login` checks it against the stored hash; both return a JWT with `role: "customer"`. `POST /route-ticket` and `GET /tickets/mine` require it — a ticket is saved with the submitting customer's id, and `/tickets/mine` only ever returns that customer's own rows.
+
+Either JWT is sent as `Authorization: Bearer <token>` and expires after `JWT_EXPIRE_MINUTES` (default 60).
+
+On the frontend, `AuthProvider`/`useAuth` tracks the admin session and `CustomerAuthProvider`/`useCustomerAuth` tracks the customer session — independently, in separate `localStorage` slots, so a browser can be logged into both at once. `services/api.js` attaches the correct token per endpoint automatically. `ProtectedRoute` guards `/admin` (redirecting to `/admin/login`); `CustomerProtectedRoute` guards `/` and `/my-tickets` (redirecting to `/login`) — both also react to a token expiring mid-session (a 401 clears it and bounces back to the right login page).
+
 ## Environment Variables
 
 | File | Variable | Description |
 |---|---|---|
 | `backend/.env` | `DATABASE_URL` | PostgreSQL connection string, e.g. `postgresql://user:password@localhost:5432/smart_ticket_router`. |
 | `backend/.env` | `OPENAI_API_KEY` | OpenAI API key used for GPT-4.1 classification calls. |
+| `backend/.env` | `ADMIN_USERNAME` | Login username for the single admin account. |
+| `backend/.env` | `ADMIN_PASSWORD` | Login password for the single admin account. |
+| `backend/.env` | `JWT_SECRET_KEY` | Secret used to sign/verify all JWTs (admin and customer) — generate with `python -c "import secrets; print(secrets.token_hex(32))"`. |
+| `backend/.env` | `JWT_EXPIRE_MINUTES` | How long a login session lasts, in minutes (default 60). |
 | `frontend/.env` | `VITE_API_URL` | Base URL the frontend uses to reach the backend API, e.g. `http://127.0.0.1:8000`. |
 
 ## API
@@ -266,15 +296,44 @@ The app is now available at `http://localhost:5173`.
 |---|---|---|
 | `GET` | `/` | Health check — confirms the API is running. |
 | `GET` | `/test-db` | Verifies database connectivity; returns 503 if unreachable. |
-| `POST` | `/route-ticket` | Classifies a ticket message; returns a list of one or more routing decisions. |
-| `GET` | `/tickets` | Lists saved tickets, newest first. Optional `limit` (1–500) and `offset` query params; total row count is returned via the `X-Total-Count` header. |
-| `GET` | `/tickets/stats` | Returns dashboard analytics: totals by priority, category, sentiment, and a `needs_human_review_count`. |
+| `POST` | `/admin/login` | Checks admin credentials, returns a JWT (`access_token`) on success. |
+| `POST` | `/register` | Creates a customer account; returns a JWT on success, 409 if the email is already registered. |
+| `POST` | `/login` | Checks customer credentials, returns a JWT (`access_token`) on success. |
+| `POST` | `/route-ticket` | Requires a customer `Authorization: Bearer <token>`. Classifies a ticket message; returns a list of one or more routing decisions. |
+| `GET` | `/tickets` | Requires an admin `Authorization: Bearer <token>`. Lists saved tickets, newest first. Optional `limit` (1–500) and `offset` query params; total row count is returned via the `X-Total-Count` header. |
+| `GET` | `/tickets/stats` | Requires an admin `Authorization: Bearer <token>`. Returns dashboard analytics: totals by priority, category, sentiment, and a `needs_human_review_count`. |
+| `GET` | `/tickets/mine` | Requires a customer `Authorization: Bearer <token>`. Lists the logged-in customer's own tickets, newest first. |
+
+**`POST /register`** and **`POST /login`** (customer) — obtain a token, then use it for `/route-ticket` and `/tickets/mine`:
+
+```bash
+curl -X POST http://localhost:8000/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "alice@example.com", "password": "hunter22222"}'
+```
+
+```json
+{ "access_token": "<jwt>", "token_type": "bearer" }
+```
+
+**`POST /admin/login`** — obtain a token, then use it for `/tickets` and `/tickets/stats`:
+
+```bash
+curl -X POST http://localhost:8000/admin/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "change-me"}'
+```
+
+```json
+{ "access_token": "<jwt>", "token_type": "bearer" }
+```
 
 **`POST /route-ticket`** — a real multi-intent submission (matches the [Screenshots](#screenshots) below):
 
 ```bash
 curl -X POST http://localhost:8000/route-ticket \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt>" \
   -d @- <<'EOF'
 {
   "message": "I'm facing several issues today.
@@ -350,6 +409,10 @@ EOF
 A single-intent message returns the same shape with exactly one entry in the array.
 
 **`GET /tickets/stats`** — real totals from this project's running demo instance:
+
+```bash
+curl http://localhost:8000/tickets/stats -H "Authorization: Bearer <jwt>"
+```
 
 ```json
 {

@@ -15,7 +15,13 @@ Usage:
 import time
 import httpx
 
-API_URL = "http://127.0.0.1:8000/route-ticket"
+BASE_URL = "http://127.0.0.1:8000"
+API_URL = f"{BASE_URL}/route-ticket"
+
+# A fixed demo account -- /route-ticket now requires a logged-in customer.
+# Registers on first run; every run after that just logs in instead.
+SEED_EMAIL = "seed-demo@example.com"
+SEED_PASSWORD = "seed-demo-password"
 
 SAMPLE_TICKETS = [
     # --- Billing ---
@@ -56,11 +62,25 @@ SAMPLE_TICKETS = [
 ]
 
 
+def _get_seed_customer_token(client: httpx.Client) -> str:
+    credentials = {"email": SEED_EMAIL, "password": SEED_PASSWORD}
+
+    response = client.post(f"{BASE_URL}/login", json=credentials)
+    if response.status_code != 200:
+        response = client.post(f"{BASE_URL}/register", json=credentials)
+        response.raise_for_status()
+
+    return response.json()["access_token"]
+
+
 def seed():
     with httpx.Client(timeout=30) as client:
+        token = _get_seed_customer_token(client)
+        headers = {"Authorization": f"Bearer {token}"}
+
         for i, message in enumerate(SAMPLE_TICKETS, start=1):
             started_at = time.time()
-            response = client.post(API_URL, json={"message": message})
+            response = client.post(API_URL, json={"message": message}, headers=headers)
             elapsed = time.time() - started_at
 
             if response.status_code == 200:
