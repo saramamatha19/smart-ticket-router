@@ -16,9 +16,7 @@ from app.router.routes import router
 from app.router.auth_routes import router as auth_router
 from app.router.customer_routes import router as customer_router
 
-# Configure logging once, at process startup. Every module gets its
-# own named logger via logging.getLogger(__name__) and inherits this
-# configuration.
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -27,11 +25,6 @@ logging.basicConfig(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # There's no migration tool in this project -- create_all() only
-    # creates tables that don't exist yet (e.g. the new `customers`
-    # table), it won't add a column to an already-existing `tickets`
-    # table, so that one extra column is added by hand here. Both
-    # statements are idempotent and safe to run on every startup.
     create_tables()
     with engine.begin() as connection:
         connection.execute(

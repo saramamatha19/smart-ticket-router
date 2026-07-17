@@ -32,12 +32,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
-# Route a ticket using AI. A message with multiple independent requests
-# (e.g. a billing issue and an unrelated joke request) comes back as
-# multiple entries -- one per request -- each routed/classified on its
-# own, which is why this returns a list even for the common single-intent
-# case.
 @router.post("/route-ticket", response_model=list[TicketResponse])
 def classify_ticket(
     ticket: TicketRequest,
@@ -46,13 +40,9 @@ def classify_ticket(
 ):
 
     try:
-        # Get AI response(s) -- one per distinct request in the message
         results = route_ticket(ticket.message)
 
     except Exception:
-        # Log the full detail server-side; never expose raw exception
-        # internals (stack traces, API keys in error messages, etc.)
-        # to the client.
         logger.error("AI routing failed for an incoming ticket", exc_info=True)
         raise HTTPException(
             status_code=502,
@@ -65,21 +55,13 @@ def classify_ticket(
     # Return AI response(s)
     return results
 
-
-# Get saved tickets, newest first.
-# limit/offset are optional — omitting them returns everything, exactly
-# like before. They exist so a growing ticket volume has a paging path
-# without a breaking change to the existing frontend call. The response
-# *body* stays a bare array (unchanged contract); the total row count
-# is exposed via the X-Total-Count header instead, so a caller using
-# limit can tell how many pages exist without a second request, and any
-# caller ignoring headers (like today's frontend) sees no difference.
 @router.get("/tickets")
 def all_tickets(
     response: Response,
     db: Session = Depends(get_db),
     limit: int | None = Query(default=None, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    #after authentication is added, this will be used to ensure only admins can call this endpoint
     _admin: str = Depends(get_current_admin),
 ):
 
@@ -94,9 +76,6 @@ def ticket_stats(db: Session = Depends(get_db), _admin: str = Depends(get_curren
     return get_ticket_stats(db)
 
 
-# A customer's own ticket history, newest first -- unlike /tickets
-# (admin-only, sees everything), this is scoped to the logged-in
-# customer's own submissions.
 @router.get("/tickets/mine")
 def my_tickets(
     db: Session = Depends(get_db),

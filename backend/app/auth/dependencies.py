@@ -1,14 +1,10 @@
-# FastAPI dependencies that guard routes based on the JWT's "role"
-# claim ("admin" or "customer") -- see app/auth/security.py.
-
+#who is allowed-admin or customer.
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 
 from app.auth.security import decode_access_token
 
-# tokenUrl only documents, in the OpenAPI schema, where a token can be
-# obtained -- FastAPI doesn't call it. The actual check happens below.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 _UNAUTHORIZED = HTTPException(

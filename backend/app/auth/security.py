@@ -1,13 +1,4 @@
-# JWT + password helpers shared by both auth flows in this app:
-# - the single hardcoded admin account (identity lives entirely in
-#   ADMIN_USERNAME / ADMIN_PASSWORD env vars, no DB row)
-# - real customer accounts (app/models/customer.py, password hashed
-#   with bcrypt and stored in Postgres)
-#
-# Every issued JWT carries a "role" claim ("admin" or "customer") so a
-# customer's token can't be replayed against admin-only routes and
-# vice versa -- see app/auth/dependencies.py.
-
+#creates tokens and verifies tokens.
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -27,11 +18,6 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 
 def verify_admin_credentials(username: str, password: str) -> bool:
-    """Constant-time compare against the env-configured admin account.
-
-    secrets.compare_digest (rather than ==) avoids leaking how many
-    leading characters matched via response-time differences.
-    """
     username_ok = secrets.compare_digest(username, ADMIN_USERNAME or "")
     password_ok = secrets.compare_digest(password, ADMIN_PASSWORD or "")
     return username_ok and password_ok
@@ -52,7 +38,4 @@ def create_access_token(subject: str, role: str) -> str:
 
 
 def decode_access_token(token: str) -> dict:
-    """Returns the decoded payload ({"sub": ..., "role": ...}), or raises
-    jwt.PyJWTError (expired / bad signature / malformed) for the caller
-    to translate into a 401."""
     return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])

@@ -1,13 +1,3 @@
-"""
-This file contains the system prompt used by the AI.
-
-Keeping prompts in a separate file makes them easy to update
-without changing the application logic.
-
-This is v5 of the prompt. Earlier drafts and what broke in each one
-are preserved in app/prompts/versions/ (v1.txt through v5.txt) and
-summarized in app/prompts/PROMPT_CHANGELOG.md.
-"""
 SYSTEM_PROMPT = """
 You are an expert AI Support Ticket Router.
 Your job is to analyze a customer support message and classify it.

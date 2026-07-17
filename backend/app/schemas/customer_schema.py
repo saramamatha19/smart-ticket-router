@@ -1,11 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 
 
-# --------------------------------------------------
-# A plain str (not pydantic's EmailStr) so registration doesn't need the
-# optional email-validator dependency -- just enough of a format check
-# to catch obvious typos, not full RFC validation.
-# --------------------------------------------------
 def _normalize_email(value: str) -> str:
     value = value.strip().lower()
     if "@" not in value or value.startswith("@") or value.endswith("@"):

@@ -3,6 +3,7 @@
 # Used to generate a shared group_id for tickets split from one message
 import uuid
 
+#func gives access to sql functions.
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -57,10 +58,6 @@ def save_ticket(db: Session, message, ai_result, group_id=None, customer_id=None
     return ticket
 
 
-# Save every sub-ticket produced from one submitted message. A message
-# with a single intent still goes through this path with a one-item
-# list -- group_id is only meaningful (and only worth stamping) once
-# there's more than one row to tie together.
 def save_tickets(db: Session, message, ai_results, customer_id=None):
 
     group_id = str(uuid.uuid4()) if len(ai_results) > 1 else None
@@ -70,10 +67,6 @@ def save_tickets(db: Session, message, ai_results, customer_id=None):
         for ai_result in ai_results
     ]
 
-
-# Get tickets, newest first. limit/offset are optional so the existing
-# "give me everything" call (no params) behaves exactly as before —
-# this only adds the *capability* to page through results.
 def get_all_tickets(db: Session, limit: int | None = None, offset: int = 0):
 
     query = db.query(Ticket).order_by(Ticket.id.desc()).offset(offset)
@@ -83,9 +76,6 @@ def get_all_tickets(db: Session, limit: int | None = None, offset: int = 0):
 
     return query.all()
 
-
-# A customer's own tickets, newest first -- backs GET /tickets/mine so
-# a customer only ever sees what they submitted, never anyone else's.
 def get_tickets_by_customer(db: Session, customer_id: int, limit: int | None = None, offset: int = 0):
 
     query = (
@@ -100,9 +90,6 @@ def get_tickets_by_customer(db: Session, customer_id: int, limit: int | None = N
 
     return query.all()
 
-
-# Total row count, used to expose X-Total-Count alongside a paginated
-# /tickets response -- a single SQL COUNT, not len() on a fetched list.
 def get_ticket_count(db: Session):
 
     return db.query(func.count(Ticket.id)).scalar()
